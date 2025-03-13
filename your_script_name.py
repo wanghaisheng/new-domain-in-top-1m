@@ -69,6 +69,15 @@ def update_database(zip_file):
     conn = sqlite3.connect(DB_FILE) # move here so that it's only called after successfully reading zip file.
     cursor = conn.cursor()
     new_domains = []
+    is_first_run = False
+
+    # Check if the domains table is empty to determine if it's the first run
+    cursor.execute("SELECT COUNT(*) FROM domains")
+    domain_count = cursor.fetchone()[0]
+    if domain_count == 0:
+        is_first_run = True
+        logging.info("Detected first run.  Not saving all domains to new_domains.txt")
+
 
     for row in data[1:]:  # skip the header
         if len(row) == 2:
@@ -94,7 +103,12 @@ def update_database(zip_file):
 
     conn.commit()
     logging.info(f"Database updated successfully with data from {zip_file}")
-    return new_domains
+
+    #Only if the database is not empty, then return a new_domains_list
+    if is_first_run:
+      return []
+    else:
+      return new_domains
 
 
 if __name__ == "__main__":
