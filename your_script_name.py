@@ -1,7 +1,7 @@
 import csv
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import sqlite3
 import zipfile
 import codecs
@@ -11,139 +11,112 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 DB_FILE = 'domain_rank.db'  # 数据库文件名
 ZIP_FILE = 'tranco.zip'
-CSV_FILE_NAME = 'top-1m.csv' # CSV 文件名
+CSV_FILE_NAME = 'top-1m.csv'  # CSV 文件名
 
-def create_database():
-    """创建数据库表."""
+def create_table_for_year(conn, year):
+    """为指定年份创建表."""
+    cursor = conn.cursor()
+    table_name = f"ranks_{year}"
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        # 构建列名 (序号, 域名, 每一天的日期)
+        columns = ["domain TEXT PRIMARY KEY"] + [f"'{date.strftime('%Y-%m-%d')}' INTEGER"
+                                                  for date in (date(year, 1, 1) + timedelta(n)
+                                                               for n in range(365 if year % 4 == 0 else 365))]
 
-        # 创建 domains 表，用于存储域名和首次出现日期
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS domains (
-                domain TEXT PRIMARY KEY,
-                first_seen DATE
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                {','.join(columns)}
             )
         """)
+        conn.commit()
+        logging.info(f"Table {table_name} created successfully.")
+    except Exception as e:
+        logging.error(f"Error creating table {table_name}: {e}")
 
-        # 创建 ranks 表，用于存储域名在不同日期的排名
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ranks (
-                domain TEXT,
-                date DATE,
-                rank INTEGER,
-                FOREIGN KEY (domain) REFERENCES domains(domain),
-                PRIMARY KEY (domain, date)
-            )
-        """)
+def initialize_table_with_domains(conn, year):
+    """使用去重后的域名数据初始化指定年份的表"""
+    cursor = conn.cursor()
+    table_name = f"ranks_{year}"
+
+    try:
+        # 从现有表格中提取不重复的域名
+        cursor.execute("SELECT DISTINCT domain FROM ranks WHERE date < DATE('now', '-1 days')") #所有已经出现过的域名
+        existing_domains = [row[0] for row in cursor.fetchall()]
+
+        # 批量插入域名数据
+        rows_to_insert = [(domain,) for domain in existing_domains]
+        placeholders = ",".join("?" * len(rows_to_insert[0]))  # 生成占位符字符串
+        cursor.executemany(f"INSERT OR IGNORE INTO {table_name} (domain) VALUES ({placeholders})", rows_to_insert)  # 插入数据
 
         conn.commit()
-        logging.info(f"Database tables created successfully in {DB_FILE}")
+        logging.info(f"{len(existing_domains)} unique domains initialized to {table_name}.")
     except Exception as e:
-        logging.error(f"Error creating database tables: {e}")
+        logging.error(f"Failed to initialize domains to table {table_name}: {e}")
+
+
+def update_database(zip_file, year):
+    """更新指定年份的数据库表."""
+    conn = None
+    try:
+        with zipfile.ZipFile(zip_file, 'r') as z:
+            with z.open(CSV_FILE_NAME, 'r') as csvfile:
+                reader = csv.reader(codecs.getreader("utf-8")(csvfile))
+                data = list(reader)
+
+        date = datetime.now().strftime('%Y-%m-%d')  # Current date
+
+    except FileNotFoundError:
+        logging.error(f"Zip file not found: {zip_file}")
+        return
+    except Exception as e:
+        logging.error(f"Error processing zip file: {e}")
+        return
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    table_name = f"ranks_{year}"
+
+    try:
+        # 假设数据每天更新，从文件名中获取日期
+        current_date = datetime.now().date()
+        date_str = current_date.strftime('%Y-%m-%d')
+        logging.info(f"Updating database for date: {date_str}")
+
+        # Prepare update statement
+        update_statement = f"""
+            UPDATE {table_name}
+            SET '{date_str}' = (CASE domain """
+        for row in data[1:]:
+            if len(row) == 2:
+                try:
+                    rank = int(row[0].strip())
+                    domain = row[1].strip()
+                    update_statement += f" WHEN '{domain}' THEN {rank}"
+                except (ValueError, IndexError) as e:
+                    logging.warning(f"Could not process row {row}: {e}")
+        update_statement += f""" ELSE NULL END)""" # 如果没有匹配的排名，则为NULL
+        cursor.execute(update_statement)
+
+        conn.commit()
+        logging.info(f"Database table {table_name} updated for date {date_str}")
+
+    except Exception as e:
+        logging.error(f"Error updating table {table_name}: {e}")
+
     finally:
         if conn:
             conn.close()
 
-
-def update_database(zip_file):
-    """更新数据库，并返回新出现的域名列表."""
-    conn = None  # Initialize conn to None
-    try:
-        with zipfile.ZipFile(zip_file, 'r') as z:
-            with z.open(CSV_FILE_NAME, 'r') as csvfile: # Open the csv file from zip file
-                # 读取 CSV 文件内容
-                reader = csv.reader(codecs.getreader("utf-8")(csvfile)) #Handle UnicodeDecodeError with codecs
-                data = list(reader) # read the data
-
-        date = datetime.now().strftime('%Y-%m-%d') # Use the current date
-
-    except FileNotFoundError:
-        logging.error(f"Zip file not found: {zip_file}")
-        return []
-    except Exception as e:
-        logging.error(f"Error processing zip file: {e}")
-        return []
-
-    conn = sqlite3.connect(DB_FILE) # move here so that it's only called after successfully reading zip file.
-    cursor = conn.cursor()
-    new_domains = []
-    is_first_run = False
-
-    # Check if the domains table is empty to determine if it's the first run
-    cursor.execute("SELECT COUNT(*) FROM domains")
-    domain_count = cursor.fetchone()[0]
-    if domain_count == 0:
-        is_first_run = True
-        logging.info("Detected first run.  Not saving all domains to new_domains.txt")
-
-
-    for row in data[1:]:  # skip the header
-        if len(row) == 2:
-            try:
-                rank = int(row[0].strip())  # 排名
-                domain = row[1].strip()
-
-                # 检查域名是否已存在
-                cursor.execute("SELECT first_seen FROM domains WHERE domain = ?", (domain,))
-                result = cursor.fetchone()
-
-                if result is None:
-                    # 新域名，添加到 domains 表
-                    cursor.execute("INSERT INTO domains (domain, first_seen) VALUES (?, ?)", (domain, date))
-                    new_domains.append(domain)
-                    logging.info(f"New domain {domain} added to domains table.")
-
-                # 添加或更新排名信息到 ranks 表
-                cursor.execute("INSERT OR REPLACE INTO ranks (domain, date, rank) VALUES (?, ?, ?)", (domain, date, rank))
-
-            except (IndexError, ValueError) as e:
-                logging.error(f"Error processing row in zip file : {e}")
-
-    conn.commit()
-    logging.info(f"Database updated successfully with data from {zip_file}")
-
-    #Only if the database is not empty, then return a new_domains_list
-    if is_first_run:
-      return []
-    else:
-      return new_domains
-
-
-if __name__ == "__main__":
-    # 示例用法：
+def main():
+    # 获取年份
+    current_year = datetime.now().year
 
     # 确保 data 目录存在
     if not os.path.exists("data"):
         os.makedirs("data")
 
     # 下载 zip 文件
-    zip_file_path = os.path.join("data", ZIP_FILE)  # data 目录下的 tranco.zip
+    zip_file_path = os.path.join("data", ZIP_FILE)
 
     if not os.path.exists(zip_file_path):
-        logging.info(f"Downloading {ZIP_FILE}...")
-        os.system(f"wget https://tranco-list.eu/top-1m.csv.zip -O {zip_file_path}")
-        logging.info(f"{ZIP_FILE} downloaded successfully.")
-
-    # 创建数据库
-    create_database()
-
-    # 更新数据库
-    new_domains = update_database(zip_file_path)
-
-    if new_domains:
-        print(f"New domains added on {datetime.now().strftime('%Y-%m-%d')}: {new_domains}")
-        # Write new domains to a file
-        github_workspace = os.environ.get("GITHUB_WORKSPACE", ".")  # Get workspace, default to current dir
-        new_domains_file = os.path.join(github_workspace, "new_domains.txt")
-
-        with open(new_domains_file, "w") as f:
-            for domain in new_domains:
-                f.write(f"{domain}\n")
-        logging.info(f"New domains written to {new_domains_file}")
-
-    else:
-        print("No new domains added.")
-
-    logging.info("Database update complete.")
+        logging.info(f"Downloading {ZIP_FILE}
