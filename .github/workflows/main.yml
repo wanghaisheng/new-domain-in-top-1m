@@ -1,0 +1,62 @@
+name: Daily Domain Rank Update
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 00:00 (北京时间 08:00) 运行
+
+jobs:
+  update_and_commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 pandas psutil
+
+      - name: Download zip file
+        run: |
+          mkdir -p data
+          wget https://tranco-list.eu/top-1m.csv.zip -O data/tranco.zip
+
+      - name: Run the script
+        run: python your_script_name.py  # 替换为你的脚本文件名
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}  # 将 GitHub Workspace 路径传递给脚本
+
+      - name: Save new domains to CSV
+        run: |
+          # 创建 CSV 文件 (假设你的 Python 脚本会返回一个新域名的列表)
+          echo "Domain" > new_domains.csv  # 添加表头
+          #假设 Python 脚本输出的是每行一个域名的文本文件 new_domains.txt
+          if [ -f "new_domains.txt" ]; then # 如果存在new_domains.txt才执行后续操作
+            while IFS= read -r domain; do
+              echo "$domain" >> new_domains.csv
+            done < new_domains.txt
+          else
+            echo "No new domains found." # 如果不存在new_domains.txt, 则输出提示信息
+          fi
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add domain_rank.db new_domains.csv  # 确保添加了你的数据库文件和 CSV 文件
+          git commit -m "Daily update of domain rank database and new domains" || echo "No changes to commit"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main  # 或者你的主分支
+
+      - name: Delete zip file
+        run: rm data/tranco.zip # 删除zip文件
