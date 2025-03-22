@@ -7,15 +7,17 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 import json
 import argparse
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 文件路径 - 修改为支持 GitHub Actions 环境
 github_workspace = os.environ.get("GITHUB_WORKSPACE", ".")  # 获取 GitHub 工作目录，默认为当前目录
-DOMAINS_RANKINGS_FILE = os.path.join(github_workspace, 'domains_rankings.csv')
+DOMAINS_RANKINGS_FILE = os.path.join(github_workspace, 'domains_rankings.parquet')
 REPORT_DIR = os.path.join(github_workspace, 'reports')
-DOMAINS_FIRST_SEEN_FILE = os.path.join(github_workspace, 'domains_first_seen.csv')
+DOMAINS_FIRST_SEEN_FILE = os.path.join(github_workspace, 'domains_first_seen.parquet')
 
 def ensure_report_dir():
     """确保报告目录存在"""
@@ -30,8 +32,8 @@ def load_rankings_data():
         return None
     
     try:
-        # 使用pandas读取CSV文件，更高效处理大数据
-        df = pd.read_csv(DOMAINS_RANKINGS_FILE)
+        # 使用pandas读取Parquet文件，更高效处理大数据
+        df = pd.read_parquet(DOMAINS_RANKINGS_FILE)
         logging.info(f"成功加载排名数据，共 {len(df)} 个域名")
         return df
     except Exception as e:
@@ -197,7 +199,7 @@ def generate_report(changes_df, period_type, start_date, end_date):
     period_name = "周报" if period_type == 'week' else "月报"
     
     # 使用 os.path.join 构建文件路径，与主脚本保持一致
-    report_file = os.path.join(REPORT_DIR, f"域名排名变化{period_name}_{timestamp}.csv")
+    report_file = os.path.join(REPORT_DIR, f"域名排名变化{period_name}_{timestamp}.parquet")
     
     # 筛选有意义的变化（排除变化为0的记录）
     meaningful_changes = changes_df[changes_df['rank_change'] != 0].copy()
@@ -210,27 +212,45 @@ def generate_report(changes_df, period_type, start_date, end_date):
     rising_domains = changes_df[changes_df['rank_change'] > 0].sort_values('rank_change', ascending=False).head(50)
     falling_domains = changes_df[changes_df['rank_change'] < 0].sort_values('rank_change', ascending=True).head(50)
     
-    # 保存CSV报告
+    # 保存报告
     try:
         # 保存总体变化报告
-        top_changes[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
-            report_file, index=False, encoding='utf-8'
+        top_changes[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_parquet(
+            report_file, index=False
         )
         logging.info(f"已保存排名变化报告: {report_file}")
         
+        # 同时保存CSV版本以便于查看
+        csv_report_file = os.path.join(REPORT_DIR, f"域名排名变化{period_name}_{timestamp}.csv")
+        top_changes[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+            csv_report_file, index=False, encoding='utf-8'
+        )
+        
         # 保存上升域名报告
-        rising_file = os.path.join(REPORT_DIR, f"排名上升域名{period_name}_{timestamp}.csv")
-        rising_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
-            rising_file, index=False, encoding='utf-8'
+        rising_file = os.path.join(REPORT_DIR, f"排名上升域名{period_name}_{timestamp}.parquet")
+        rising_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_parquet(
+            rising_file, index=False
         )
         logging.info(f"已保存排名上升域名报告: {rising_file}")
         
+        # 同时保存CSV版本
+        csv_rising_file = os.path.join(REPORT_DIR, f"排名上升域名{period_name}_{timestamp}.csv")
+        rising_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+            csv_rising_file, index=False, encoding='utf-8'
+        )
+        
         # 保存下降域名报告
-        falling_file = os.path.join(REPORT_DIR, f"排名下降域名{period_name}_{timestamp}.csv")
-        falling_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
-            falling_file, index=False, encoding='utf-8'
+        falling_file = os.path.join(REPORT_DIR, f"排名下降域名{period_name}_{timestamp}.parquet")
+        falling_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_parquet(
+            falling_file, index=False
         )
         logging.info(f"已保存排名下降域名报告: {falling_file}")
+        
+        # 同时保存CSV版本
+        csv_falling_file = os.path.join(REPORT_DIR, f"排名下降域名{period_name}_{timestamp}.csv")
+        falling_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+            csv_falling_file, index=False, encoding='utf-8'
+        )
         
         # 生成可视化图表
         generate_visualization(rising_domains, falling_domains, period_type, timestamp)
@@ -441,7 +461,7 @@ if __name__ == "__main__":
         timestamp = datetime.now().strftime('%Y%m%d')
         
         # 使用 os.path.join 构建文件路径
-        report_file = os.path.join(REPORT_DIR, f"{report_name}_{start_date}_to_{end_date}_{timestamp}.csv")
+        report_file = os.path.join(REPORT_DIR, f"{report_name}_{start_date}_to_{end_date}_{timestamp}.parquet")
         
         # 筛选有意义的变化（排除变化为0的记录）
         meaningful_changes = custom_changes[custom_changes['rank_change'] != 0].copy()

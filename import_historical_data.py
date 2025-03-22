@@ -4,6 +4,9 @@ import logging
 import sqlite3
 import zipfile
 import codecs
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from datetime import datetime
 
 # 配置日志记录
@@ -11,25 +14,21 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # 数据库和文件路径
 DB_FILE = 'domain_rank.db'
-DOMAINS_RANKINGS_FILE = 'domains_rankings.csv'
-DOMAINS_FIRST_SEEN_FILE = 'domains_first_seen.csv'
+DOMAINS_RANKINGS_FILE = 'domains_rankings.parquet'
+DOMAINS_FIRST_SEEN_FILE = 'domains_first_seen.parquet'
 HISTORICAL_DATA_DIR = 'historical_extracts'
 
 def load_domains_history():
-    """从CSV文件加载历史域名数据和排名"""
+    """从Parquet文件加载历史域名数据和排名"""
     domains_rankings = {}  # 域名排名历史
     domains_first_seen = {}  # 域名首次出现日期
     
     # 加载域名首次出现日期
     if os.path.exists(DOMAINS_FIRST_SEEN_FILE):
         try:
-            with open(DOMAINS_FIRST_SEEN_FILE, 'r', newline='', encoding='utf-8') as f:
-                reader = csv.reader(f)
-                next(reader)  # 跳过标题行
-                for row in reader:
-                    if len(row) == 2:
-                        domain, first_seen = row
-                        domains_first_seen[domain] = first_seen
+            df = pd.read_parquet(DOMAINS_FIRST_SEEN_FILE)
+            for _, row in df.iterrows():
+                domains_first_seen[row['domain']] = row['first_seen']
             logging.info(f"Loaded {len(domains_first_seen)} domains first seen dates")
         except Exception as e:
             logging.error(f"Error loading domains first seen dates: {e}")
@@ -37,41 +36,35 @@ def load_domains_history():
     # 加载域名排名历史
     if os.path.exists(DOMAINS_RANKINGS_FILE):
         try:
-            with open(DOMAINS_RANKINGS_FILE, 'r', newline='', encoding='utf-8') as f:
-                reader = csv.reader(f)
-                headers = next(reader)  # 获取标题行（日期列）
-                
-                # 第一列是域名，其余列是日期
-                dates = headers[1:]
-                
-                for row in reader:
-                    if len(row) > 1:
-                        domain = row[0]
-                        domains_rankings[domain] = {}
-                        
-                        # 将每个日期的排名添加到域名的排名历史中
-                        for i, date in enumerate(dates):
-                            if i + 1 < len(row) and row[i + 1]:
-                                try:
-                                    domains_rankings[domain][date] = int(row[i + 1])
-                                except ValueError:
-                                    domains_rankings[domain][date] = 0
+            df = pd.read_parquet(DOMAINS_RANKINGS_FILE)
             
-            logging.info(f"Loaded ranking history for {len(domains_rankings)} domains across {len(dates)} dates")
+            # 获取所有日期列
+            date_columns = [col for col in df.columns if col != 'domain']
+            
+            # 将DataFrame转换为字典格式
+            for _, row in df.iterrows():
+                domain = row['domain']
+                domains_rankings[domain] = {}
+                
+                for date in date_columns:
+                    if not pd.isna(row[date]) and row[date] != 0:
+                        domains_rankings[domain][date] = int(row[date])
+            
+            logging.info(f"Loaded ranking history for {len(domains_rankings)} domains across {len(date_columns)} dates")
         except Exception as e:
             logging.error(f"Error loading domains ranking history: {e}")
     
     return domains_rankings, domains_first_seen
 
 def save_domains_history(domains_rankings, domains_first_seen):
-    """将域名排名数据保存到CSV文件"""
+    """将域名排名数据保存到Parquet文件"""
     # 保存域名首次出现日期
     try:
-        with open(DOMAINS_FIRST_SEEN_FILE, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(['domain', 'first_seen'])
-            for domain, first_seen in domains_first_seen.items():
-                writer.writerow([domain, first_seen])
+        df_first_seen = pd.DataFrame([
+            {'domain': domain, 'first_seen': first_seen}
+            for domain, first_seen in domains_first_seen.items()
+        ])
+        df_first_seen.to_parquet(DOMAINS_FIRST_SEEN_FILE, index=False)
         logging.info(f"Saved first seen dates for {len(domains_first_seen)} domains")
     except Exception as e:
         logging.error(f"Error saving domains first seen dates: {e}")
@@ -86,19 +79,20 @@ def save_domains_history(domains_rankings, domains_first_seen):
         # 按日期排序
         sorted_dates = sorted(all_dates)
         
-        with open(DOMAINS_RANKINGS_FILE, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            
-            # 写入标题行：域名和所有日期
-            header = ['domain'] + sorted_dates
-            writer.writerow(header)
-            
-            # 写入每个域名的排名数据
-            for domain, rankings in domains_rankings.items():
-                row = [domain]
-                for date in sorted_dates:
-                    row.append(rankings.get(date, 0))  # 如果没有排名，使用0
-                writer.writerow(row)
+        # 创建数据字典
+        data = {'domain': []}
+        for date in sorted_dates:
+            data[date] = []
+        
+        # 填充数据
+        for domain, rankings in domains_rankings.items():
+            data['domain'].append(domain)
+            for date in sorted_dates:
+                data[date].append(rankings.get(date, 0))
+        
+        # 创建DataFrame并保存为Parquet
+        df_rankings = pd.DataFrame(data)
+        df_rankings.to_parquet(DOMAINS_RANKINGS_FILE, index=False)
         
         logging.info(f"Saved ranking history for {len(domains_rankings)} domains across {len(sorted_dates)} dates")
     except Exception as e:
