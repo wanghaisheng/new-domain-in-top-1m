@@ -127,7 +127,7 @@ def import_historical_data():
         logging.warning("可能原因：1. Git仓库克隆深度不够 2. 提交记录过滤条件有问题 3. 部分日期没有提交记录")
         logging.warning("建议在workflow中增加git clone深度，并检查git log过滤条件")
     
-    # 处理每个日期目录
+    # 逐个处理每个日期目录，每处理一个就更新一次数据库
     for date_dir in date_dirs:
         date = date_dir  # 目录名就是日期
         zip_file = os.path.join(HISTORICAL_DATA_DIR, date_dir, "tranco.zip")
@@ -155,12 +155,16 @@ def import_historical_data():
                 logging.error(f"Error processing CSV file for date {date}: {e}")
         else:
             logging.warning(f"No data file found for date: {date}")
-    
-    # 保存更新后的数据
-    save_domains_history(domains_rankings, domains_first_seen)
-    
-    # 更新数据库
-    update_database(domains_rankings, domains_first_seen)
+        
+        # 每处理10个日期，保存一次数据并更新数据库
+        if int(date_dirs.index(date_dir) + 1) % 10 == 0 or date_dir == date_dirs[-1]:
+            # 保存更新后的数据
+            save_domains_history(domains_rankings, domains_first_seen)
+            
+            # 更新数据库
+            update_database(domains_rankings, domains_first_seen)
+            
+            logging.info(f"Saved data and updated database after processing {date_dir} ({date_dirs.index(date_dir) + 1}/{len(date_dirs)})")
     
     logging.info("Historical data import completed")
 
