@@ -167,7 +167,57 @@ def import_historical_data():
             logging.info(f"Saved data and updated database after processing {date_dir} ({date_dirs.index(date_dir) + 1}/{len(date_dirs)})")
     
     logging.info("Historical data import completed")
-
+def process_single_commit(commit_hash, commit_date):
+    """处理单个提交"""
+    # 加载现有数据
+    domains_rankings, domains_first_seen = load_domains_history()
+    
+    # 检查提交目录是否存在
+    commit_dir = os.path.join(HISTORICAL_DATA_DIR, commit_date)
+    if not os.path.exists(commit_dir):
+        logging.error(f"Commit directory not found: {commit_dir}")
+        return False
+    
+    # 检查zip文件或csv文件
+    zip_file = os.path.join(commit_dir, "tranco.zip")
+    csv_file = os.path.join(commit_dir, "top-1m.csv")
+    
+    processed = False
+    if os.path.exists(zip_file):
+        # 从zip文件读取数据
+        try:
+            with zipfile.ZipFile(zip_file, 'r') as z:
+                with z.open("top-1m.csv", 'r') as csvfile:
+                    reader = csv.reader(codecs.getreader("utf-8")(csvfile))
+                    process_csv_data(reader, commit_date, domains_rankings, domains_first_seen)
+            logging.info(f"Processed data from zip file for date: {commit_date}")
+            processed = True
+        except Exception as e:
+            logging.error(f"Error processing zip file for date {commit_date}: {e}")
+    elif os.path.exists(csv_file):
+        # 直接从csv文件读取数据
+        try:
+            with open(csv_file, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                process_csv_data(reader, commit_date, domains_rankings, domains_first_seen)
+            logging.info(f"Processed data from CSV file for date: {commit_date}")
+            processed = True
+        except Exception as e:
+            logging.error(f"Error processing CSV file for date {commit_date}: {e}")
+    else:
+        logging.warning(f"No data file found for date: {commit_date}")
+    
+    if processed:
+        # 保存更新后的数据
+        save_domains_history(domains_rankings, domains_first_seen)
+        
+        # 更新数据库
+        update_database(domains_rankings, domains_first_seen)
+        
+        logging.info(f"Saved data and updated database for commit {commit_hash} ({commit_date})")
+        return True
+    
+    return False
 def process_csv_data(reader, date, domains_rankings, domains_first_seen):
     """处理CSV数据"""
     data = list(reader)
