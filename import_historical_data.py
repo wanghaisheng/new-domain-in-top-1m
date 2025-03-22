@@ -169,11 +169,6 @@ def import_historical_data():
     logging.info("Historical data import completed")
 def process_single_commit(commit_hash, commit_date):
     """处理单个提交"""
-    # 检查日期是否在2024-06-08或之后
-    if commit_date < "2024-06-08":
-        logging.info(f"跳过 {commit_date} 的提交 {commit_hash}，因为它早于 2024-06-08")
-        return False
-        
     # 加载现有数据
     domains_rankings, domains_first_seen = load_domains_history()
     
@@ -220,39 +215,6 @@ def process_single_commit(commit_hash, commit_date):
         update_database(domains_rankings, domains_first_seen)
         
         logging.info(f"Saved data and updated database for commit {commit_hash} ({commit_date})")
-        
-        # 提交更改到GitHub仓库
-        try:
-            import subprocess
-            
-            # 配置Git用户信息
-            subprocess.run(["git", "config", "--local", "user.email", "actions@github.com"], check=True)
-            subprocess.run(["git", "config", "--local", "user.name", "GitHub Actions"], check=True)
-            
-            # 添加CSV文件
-            subprocess.run(["git", "add", DOMAINS_RANKINGS_FILE, DOMAINS_FIRST_SEEN_FILE], check=True)
-            
-            # 更新最后处理的日期
-            with open("last_processed_date.txt", "w") as f:
-                f.write(commit_date)
-            
-            # 添加最后处理日期文件
-            subprocess.run(["git", "add", "last_processed_date.txt"], check=True)
-            
-            # 提交更改
-            commit_message = f"Import domain rank data for {commit_date} (commit {commit_hash[:8]})"
-            result = subprocess.run(["git", "commit", "-m", commit_message], capture_output=True, text=True)
-            
-            if "nothing to commit" in result.stdout or "nothing to commit" in result.stderr:
-                logging.info("No changes to commit")
-            else:
-                # 推送更改
-                subprocess.run(["git", "push"], check=True)
-                logging.info(f"Successfully committed and pushed data for {commit_date}")
-        except Exception as e:
-            logging.error(f"Error committing data to GitHub: {e}")
-            # 即使提交失败，我们仍然认为处理成功，因为数据已经保存
-        
         return True
     
     return False

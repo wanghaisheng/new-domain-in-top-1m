@@ -28,14 +28,17 @@ jobs:
           git clone --depth=500 https://github.com/adysec/top_1m_domains.git historical_data
           echo "历史数据仓库克隆完成"
 
-      # 提取历史数据并准备提交列表
+      # 修改工作流以按时间顺序处理所有提交
       - name: Prepare commit list
         run: |
           mkdir -p historical_extracts
           cd historical_data
           
           # 获取2024年6月8日之后的提交记录，使用更精确的日期格式
-          git log --pretty=format:"%H %cs" --after="2024-06-07T23:59:59" > ../historical_commits.txt
+          git log --pretty=format:"%H %cs" --after="2024-06-07T23:59:59" > ../historical_commits_unsorted.txt
+          
+          # 按日期排序（从早到晚）
+          sort -k2 ../historical_commits_unsorted.txt > ../historical_commits.txt
           
           # 检查提交记录数量
           commit_count=$(wc -l < ../historical_commits.txt)
