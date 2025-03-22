@@ -28,8 +28,8 @@ jobs:
           git clone --depth=500 https://github.com/adysec/top_1m_domains.git historical_data
           echo "历史数据仓库克隆完成"
 
-      # 提取历史数据
-      - name: Extract historical data
+      # 提取历史数据并准备提交列表
+      - name: Prepare commit list
         run: |
           mkdir -p historical_extracts
           cd historical_data
@@ -46,45 +46,46 @@ jobs:
           fi
           
           cd ..
-          
-          # 处理每个提交
-          - name: Process commits
-            run: |
-              while read -r commit_hash commit_date; do
-                echo "处理 $commit_date 的提交 $commit_hash"
-                
-                # 检出特定提交
-                cd historical_data
-                git checkout -f $commit_hash
-                
-                # 如果存在zip文件，解压并复制到对应日期的目录
-                if [ -f "tranco.zip" ]; then
-                  mkdir -p ../historical_extracts/$commit_date
-                  cp tranco.zip ../historical_extracts/$commit_date/
-                  cd ../
-                  
-                  # 直接处理这个提交
-                  python -c "
+          echo "提交列表准备完成"
+
+      # 处理每个提交
+      - name: Process commits
+        run: |
+          while read -r commit_hash commit_date; do
+            echo "处理 $commit_date 的提交 $commit_hash"
+            
+            # 检出特定提交
+            cd historical_data
+            git checkout -f $commit_hash
+            
+            # 如果存在zip文件，解压并复制到对应日期的目录
+            if [ -f "tranco.zip" ]; then
+              mkdir -p ../historical_extracts/$commit_date
+              cp tranco.zip ../historical_extracts/$commit_date/
+              cd ../
+              
+              # 直接处理这个提交
+              python -c "
 import sys
 sys.path.append('.')
 from import_historical_data import process_single_commit
 process_single_commit('$commit_hash', '$commit_date')
-                  "
-                  
-                  # 检查处理结果
-                  if [ $? -eq 0 ]; then
-                    echo "成功处理 $commit_date 的数据"
-                  else
-                    echo "处理 $commit_date 的数据失败"
-                  fi
-                else
-                  cd ../
-                  echo "提交 $commit_hash ($commit_date) 中没有找到 tranco.zip 文件"
-                fi
-                
-              done < historical_commits.txt
+              "
+              
+              # 检查处理结果
+              if [ $? -eq 0 ]; then
+                echo "成功处理 $commit_date 的数据"
+              else
+                echo "处理 $commit_date 的数据失败"
+              fi
+            else
+              cd ../
+              echo "提交 $commit_hash ($commit_date) 中没有找到 tranco.zip 文件"
+            fi
+            
+          done < historical_commits.txt
           
-          echo "历史数据提取完成"
+          echo "历史数据处理完成"
 
       # 导入历史数据
       - name: Import historical data
