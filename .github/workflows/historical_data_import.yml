@@ -65,12 +65,7 @@ jobs:
               cd ../
               
               # 直接处理这个提交
-              python -c "
-import sys
-sys.path.append('.')
-from import_historical_data import process_single_commit
-process_single_commit('$commit_hash', '$commit_date')
-              "
+              python -c "import sys; sys.path.append('.'); from import_historical_data import process_single_commit; process_single_commit('$commit_hash', '$commit_date')"
               
               # 检查处理结果
               if [ $? -eq 0 ]; then
