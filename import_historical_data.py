@@ -169,8 +169,13 @@ def import_historical_data():
     logging.info("Historical data import completed")
 def process_single_commit(commit_hash, commit_date):
     """处理单个提交"""
+    start_time = datetime.now()
+    logging.info(f"开始处理提交 {commit_hash} ({commit_date})")
+    
     # 加载现有数据
+    logging.info(f"正在加载现有数据...")
     domains_rankings, domains_first_seen = load_domains_history()
+    logging.info(f"加载完成，共 {len(domains_rankings)} 个域名排名记录和 {len(domains_first_seen)} 个首次出现记录")
     
     # 检查提交目录是否存在
     commit_dir = os.path.join(HISTORICAL_DATA_DIR, commit_date)
@@ -186,6 +191,7 @@ def process_single_commit(commit_hash, commit_date):
     if os.path.exists(zip_file):
         # 从zip文件读取数据
         try:
+            logging.info(f"正在从zip文件读取数据: {zip_file}")
             with zipfile.ZipFile(zip_file, 'r') as z:
                 with z.open("top-1m.csv", 'r') as csvfile:
                     reader = csv.reader(codecs.getreader("utf-8")(csvfile))
@@ -197,6 +203,7 @@ def process_single_commit(commit_hash, commit_date):
     elif os.path.exists(csv_file):
         # 直接从csv文件读取数据
         try:
+            logging.info(f"正在从CSV文件读取数据: {csv_file}")
             with open(csv_file, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 process_csv_data(reader, commit_date, domains_rankings, domains_first_seen)
@@ -209,14 +216,24 @@ def process_single_commit(commit_hash, commit_date):
     
     if processed:
         # 保存更新后的数据
+        logging.info(f"正在保存域名排名和首次出现数据...")
+        save_start_time = datetime.now()
         save_domains_history(domains_rankings, domains_first_seen)
+        logging.info(f"数据保存完成，耗时: {(datetime.now() - save_start_time).total_seconds():.2f}秒")
         
         # 更新数据库
+        logging.info(f"正在更新数据库...")
+        db_start_time = datetime.now()
         update_database(domains_rankings, domains_first_seen)
+        logging.info(f"数据库更新完成，耗时: {(datetime.now() - db_start_time).total_seconds():.2f}秒")
         
-        logging.info(f"Saved data and updated database for commit {commit_hash} ({commit_date})")
+        total_time = (datetime.now() - start_time).total_seconds()
+        logging.info(f"提交 {commit_hash} ({commit_date}) 处理完成，总耗时: {total_time:.2f}秒")
+        
+        # 返回处理成功标志
         return True
     
+    logging.warning(f"提交 {commit_hash} ({commit_date}) 处理失败")
     return False
 def process_csv_data(reader, date, domains_rankings, domains_first_seen):
     """处理CSV数据"""
@@ -264,6 +281,7 @@ def update_database(domains_rankings, domains_first_seen):
     """更新数据库"""
     conn = None
     try:
+        logging.info(f"开始连接数据库...")
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         
@@ -275,6 +293,7 @@ def update_database(domains_rankings, domains_first_seen):
         
         # 开始事务 - 大幅提高批量插入性能
         conn.execute("BEGIN TRANSACTION")
+        logging.info(f"数据库连接和优化设置完成")
         
         # 确保domains表存在
         cursor.execute("""
@@ -285,25 +304,28 @@ def update_database(domains_rankings, domains_first_seen):
         """)
         
         # 获取数据库中现有的域名首次出现日期
+        logging.info(f"正在获取数据库中现有的域名首次出现日期...")
         existing_domains = {}
         cursor.execute("SELECT domain, first_seen FROM domains")
         for domain, first_seen in cursor.fetchall():
             existing_domains[domain] = first_seen
+        logging.info(f"获取到 {len(existing_domains)} 个现有域名记录")
         
         # 检查并更新首次出现日期
+        logging.info(f"正在准备域名首次出现日期更新...")
         domains_to_update = []
         for domain, first_seen in domains_first_seen.items():
             if domain in existing_domains:
                 # 如果数据库中已有该域名，检查是否需要更新首次出现日期
                 if first_seen < existing_domains[domain]:
                     domains_to_update.append((first_seen, domain))
-                    logging.info(f"更新域名 {domain} 的首次出现日期从 {existing_domains[domain]} 到 {first_seen}")
             else:
                 # 如果数据库中没有该域名，直接插入
                 domains_to_update.append((first_seen, domain))
         
         # 批量更新域名首次出现日期
         if domains_to_update:
+            logging.info(f"需要更新 {len(domains_to_update)} 个域名的首次出现日期")
             # 分批处理，每批10000条记录
             batch_size = 10000
             for i in range(0, len(domains_to_update), batch_size):
@@ -350,6 +372,7 @@ def update_database(domains_rankings, domains_first_seen):
         # 为每个年份创建表并导入数据
         for year in years:
             table_name = f"rankings_{year}"
+            logging.info(f"开始处理年份 {year} 的排名数据")
             
             # 检查表是否存在
             cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
@@ -372,8 +395,10 @@ def update_database(domains_rankings, domains_first_seen):
             if year == 2024:
                 year_dates = [d for d in year_dates if d >= "2024-06-07"]
             
+            logging.info(f"年份 {year} 有 {len(year_dates)} 个日期需要处理")
+            
             # 确保所有日期列存在
-            for date in year_dates:
+            for date in sorted(year_dates):
                 cursor.execute(f"PRAGMA table_info({table_name})")
                 columns = [col[1] for col in cursor.fetchall()]
                 
@@ -393,9 +418,16 @@ def update_database(domains_rankings, domains_first_seen):
             batch_size = 5000
             total_batches = (len(domains_list) - 1) // batch_size + 1
             
+            logging.info(f"需要处理 {len(domains_list)} 个域名的排名数据，分 {total_batches} 批处理")
+            
             for batch_idx in range(0, len(domains_list), batch_size):
+                batch_start_time = datetime.now()
                 batch_domains = domains_list[batch_idx:batch_idx+batch_size]
                 batch_num = batch_idx // batch_size + 1
+                
+                # 使用批量操作替代逐个域名更新
+                domains_to_insert = []
+                domains_to_update = []
                 
                 for domain in batch_domains:
                     year_rankings = {date: rank for date, rank in domains_rankings[domain].items() 
@@ -409,32 +441,57 @@ def update_database(domains_rankings, domains_first_seen):
                     domain_exists = cursor.fetchone() is not None
                     
                     if not domain_exists:
-                        # 插入域名
-                        cursor.execute(f"INSERT INTO {table_name} (domain) VALUES (?)", (domain,))
+                        # 准备插入域名
+                        insert_values = [domain]
+                        for date in sorted(year_dates):
+                            insert_values.append(year_rankings.get(date, 0))
+                        domains_to_insert.append(tuple(insert_values))
+                    else:
+                        # 准备更新域名
+                        update_cols = []
+                        update_vals = []
+                        
+                        for date in sorted(year_dates):
+                            if date in year_rankings:
+                                update_cols.append(f"'{date}' = ?")
+                                update_vals.append(year_rankings[date])
+                        
+                        if update_cols:
+                            # 添加WHERE条件的参数
+                            update_vals.append(domain)
+                            domains_to_update.append(tuple(update_vals))
+                
+                # 批量插入新域名
+                if domains_to_insert:
+                    columns = ["domain"] + [f"'{date}'" for date in sorted(year_dates)]
+                    placeholders = ", ".join(["?"] * len(columns))
+                    insert_sql = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
                     
-                    # 构建更新语句
-                    update_cols = []
-                    update_vals = []
-                    
-                    for date, rank in year_rankings.items():
-                        update_cols.append(f"'{date}' = ?")
-                        update_vals.append(rank)
-                    
-                    if update_cols:
-                        # 一次性更新所有日期的排名
-                        update_vals.append(domain)  # 添加WHERE条件的参数
-                        try:
-                            cursor.execute(
-                                f"UPDATE {table_name} SET {', '.join(update_cols)} WHERE domain = ?", 
-                                update_vals
-                            )
-                        except Exception as e:
-                            logging.error(f"Error updating ranks for domain {domain}: {e}")
+                    try:
+                        cursor.executemany(insert_sql, domains_to_insert)
+                        logging.info(f"批量插入了 {len(domains_to_insert)} 个新域名")
+                    except Exception as e:
+                        logging.error(f"批量插入域名时出错: {e}")
+                
+                # 批量更新现有域名
+                if domains_to_update:
+                    for update_vals in domains_to_update:
+                        domain = update_vals[-1]
+                        update_data = update_vals[:-1]
+                        update_cols = [f"'{date}' = ?" for date in sorted(year_dates) if date in year_rankings]
+                        
+                        if update_cols:
+                            try:
+                                update_sql = f"UPDATE {table_name} SET {', '.join(update_cols)} WHERE domain = ?"
+                                cursor.execute(update_sql, update_data + [domain])
+                            except Exception as e:
+                                logging.error(f"更新域名 {domain} 排名时出错: {e}")
                 
                 # 每批次提交一次，避免事务过大
                 conn.commit()
                 conn.execute("BEGIN TRANSACTION")
-                logging.info(f"已处理年份 {year} 的排名数据批次 {batch_num}/{total_batches}")
+                batch_time = (datetime.now() - batch_start_time).total_seconds()
+                logging.info(f"已处理年份 {year} 的排名数据批次 {batch_num}/{total_batches}，耗时: {batch_time:.2f}秒")
             
             logging.info(f"完成年份 {year} 的排名数据更新")
         
