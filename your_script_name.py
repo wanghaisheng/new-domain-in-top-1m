@@ -13,7 +13,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 DB_FILE = 'domain_rank.db'  # 数据库文件名
 ZIP_FILE = 'tranco.zip'
 CSV_FILE_NAME = 'top-1m.csv'  # CSV 文件名
-DOMAINS_HISTORY_FILE = 'domains_history.csv'  # 历史域名数据文件
+DOMAINS_RANKINGS_FILE = 'domains_rankings.csv'  # 存储域名排名历史
+DOMAINS_FIRST_SEEN_FILE = 'domains_first_seen.csv'  # 存储域名首次出现日期
 PROCESS_HISTORY_FILE = 'process_history.json'  # 处理历史记录文件
 
 def create_database():
@@ -88,61 +89,6 @@ def create_year_table(conn, year):
         
         logging.info(f"Added all date columns for year {year}")
 
-# 检查表名和文件名一致性
-
-我已经检查了三个文件中的表名和文件名，发现了一些不一致的地方。以下是详细分析：
-
-## 1. 数据库表名一致性
-
-三个文件中使用的数据库表名如下：
-
-1. **import_historical_data.py**:
-   - 主表: `domains`
-   - 年度表: `rankings_{year}` (例如 `rankings_2024`, `rankings_2025`)
-
-2. **your_script_name.py**:
-   - 主表: `domains`
-   - 年度表: `rankings_{year}` (例如 `rankings_2024`, `rankings_2025`)
-
-3. **rank_change_analyzer.py**:
-   - 没有直接操作数据库表
-
-**结论**: 数据库表名在两个操作数据库的文件中是一致的，没有问题。
-
-## 2. CSV文件名一致性
-
-三个文件中使用的CSV文件名如下：
-
-1. **import_historical_data.py**:
-   - `domains_rankings.csv` - 存储域名排名历史
-   - `domains_first_seen.csv` - 存储域名首次出现日期
-
-2. **your_script_name.py**:
-   - `domains_rankings.csv` - 存储域名排名历史 (第87行修改了文件名)
-   - `domains_first_seen.csv` - 存储域名首次出现日期 (第88行修改了文件名)
-   - 但在第84行仍然引用了旧的 `domains_history.csv` 文件名
-   - 在第85行定义了 `PROCESS_HISTORY_FILE = 'process_history.json'`，但这个文件在其他脚本中没有使用
-
-3. **rank_change_analyzer.py**:
-   - `domains_rankings.csv` - 存储域名排名历史
-   - `domains_first_seen.csv` - 存储域名首次出现日期
-
-**不一致问题**:
-1. **your_script_name.py** 中第84行仍然引用了旧的 `DOMAINS_HISTORY_FILE = 'domains_history.csv'`，但后来在第87行又重新定义为 `domains_rankings.csv`
-
-## 3. 修改建议
-
-以下是修复不一致问题的建议：
-```python
-# 修改历史文件名和格式
-# 删除这一行，因为它定义了一个后面会被覆盖的变量
-# DOMAINS_HISTORY_FILE = 'domains_history.csv'  # 更改文件名以反映其内容
-
-# 定义正确的文件名
-DOMAINS_RANKINGS_FILE = 'domains_rankings.csv'  # 存储域名排名历史
-DOMAINS_FIRST_SEEN_FILE = 'domains_first_seen.csv'  # 存储域名首次出现日期
-PROCESS_HISTORY_FILE = 'process_history.json'  # 处理历史记录文件
-
 def load_domains_history():
     """从CSV文件加载历史域名数据和排名"""
     domains_rankings = {}  # 域名排名历史
@@ -190,7 +136,6 @@ def load_domains_history():
             logging.error(f"Error loading domains ranking history: {e}")
     
     return domains_rankings, domains_first_seen
-```
 
 def save_domains_history(domains_rankings, domains_first_seen, current_date):
     """将域名排名数据保存到CSV文件"""
@@ -215,7 +160,8 @@ def save_domains_history(domains_rankings, domains_first_seen, current_date):
         # 按日期排序
         sorted_dates = sorted(all_dates)
         
-        with open(DOMAINS_HISTORY_FILE, 'w', newline='', encoding='utf-8') as f:
+        # 修改这里，使用DOMAINS_RANKINGS_FILE而不是DOMAINS_HISTORY_FILE
+        with open(DOMAINS_RANKINGS_FILE, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             
             # 写入标题行：域名和所有日期
@@ -252,7 +198,6 @@ def save_process_history(history):
     except Exception as e:
         logging.error(f"Error saving process history: {e}")
 
-# 修复未定义变量 domains_history 的问题
 def update_database(zip_file):
     """更新数据库，并返回新出现的域名列表."""
     conn = None

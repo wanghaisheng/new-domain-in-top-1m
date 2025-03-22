@@ -397,3 +397,28 @@ if __name__ == "__main__":
         logging.info(f"Created directory for historical data: {HISTORICAL_DATA_DIR}")
     
     # 导入历史数据
+    import_historical_data()
+    
+    # 检查结果文件是否存在及是否为空
+    files_to_check = [DOMAINS_RANKINGS_FILE, DOMAINS_FIRST_SEEN_FILE]
+    for file_path in files_to_check:
+        if not os.path.exists(file_path):
+            logging.error(f"结果文件不存在: {file_path}")
+        else:
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                logging.error(f"结果文件为空: {file_path}")
+            else:
+                logging.info(f"结果文件正常: {file_path}, 大小: {file_size} 字节")
+                
+                # 检查文件内容是否有效
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        first_line = f.readline().strip()
+                        if not first_line:
+                            logging.error(f"结果文件内容无效: {file_path}, 文件头为空")
+                        else:
+                            line_count = sum(1 for _ in f) + 1  # +1 是因为已经读取了第一行
+                            logging.info(f"结果文件内容有效: {file_path}, 包含 {line_count} 行数据")
+                except Exception as e:
+                    logging.error(f"检查文件内容时出错: {file_path}, 错误: {e}")
