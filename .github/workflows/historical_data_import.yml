@@ -34,14 +34,30 @@ jobs:
           mkdir -p historical_extracts
           cd historical_data
           
-          # 获取2024年6月7日之后的提交记录，使用更精确的日期格式
-          git log --pretty=format:"%H %cs" --after="2024-06-06T00:00:00" > ../historical_commits.txt
+          # 检查是否存在上次处理的日期记录
+          LAST_PROCESSED_DATE_FILE="../last_processed_date.txt"
+          START_DATE="2024-06-06"
+          
+          if [ -f $LAST_PROCESSED_DATE_FILE ]; then
+            LAST_DATE=$(cat $LAST_PROCESSED_DATE_FILE)
+            # 获取下一天的日期
+            NEXT_DATE=$(date -d "$LAST_DATE + 1 day" +%Y-%m-%d)
+            echo "上次处理到 $LAST_DATE，从 $NEXT_DATE 开始继续处理"
+            START_DATE=$NEXT_DATE
+          else
+            echo "没有找到上次处理记录，从 $START_DATE 开始处理"
+          fi
+          
+          # 获取指定日期之后的提交记录
+          git log --pretty=format:"%H %cs" --after="${START_DATE}T00:00:00" > ../historical_commits.txt
           
           # 检查提交记录数量
           commit_count=$(wc -l < ../historical_commits.txt)
           echo "找到 $commit_count 条提交记录"
           
-          if [ $commit_count -lt 200 ]; then
+          if [ $commit_count -eq 0 ]; then
+            echo "没有找到新的提交记录，可能已经处理完所有数据"
+          elif [ $commit_count -lt 200 ] && [ "$START_DATE" == "2024-06-06" ]; then
             echo "警告：提交记录数量少于预期（200+），可能需要增加克隆深度或检查日期过滤条件"
           fi
           
@@ -51,6 +67,19 @@ jobs:
       # 处理每个提交
       - name: Process commits
         run: |
+          # 配置Git以允许推送
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          
+          # 如果没有提交记录，跳过处理
+          if [ ! -s historical_commits.txt ]; then
+            echo "没有新的提交记录需要处理"
+            exit 0
+          fi
+          
+          # 记录最后处理的日期
+          LAST_PROCESSED_DATE=""
+          
           while read -r commit_hash commit_date; do
             echo "处理 $commit_date 的提交 $commit_hash"
             
@@ -70,6 +99,14 @@ jobs:
               # 检查处理结果
               if [ $? -eq 0 ]; then
                 echo "成功处理 $commit_date 的数据"
+                # 更新最后处理的日期
+                LAST_PROCESSED_DATE=$commit_date
+                # 保存最后处理的日期到文件
+                echo $LAST_PROCESSED_DATE > last_processed_date.txt
+                # 提交最后处理日期文件
+                git add last_processed_date.txt
+                git commit -m "更新最后处理日期: $LAST_PROCESSED_DATE" || echo "No changes to commit"
+                git push || echo "Failed to push last processed date"
               else
                 echo "处理 $commit_date 的数据失败"
               fi
@@ -80,7 +117,13 @@ jobs:
             
           done < historical_commits.txt
           
-          echo "历史数据处理完成"
+          echo "历史数据处理完成，最后处理的日期: $LAST_PROCESSED_DATE"
+
+      # 删除临时文件
+      - name: Delete temporary files
+        run: |
+          rm -rf historical_data
+          rm -rf historical_extracts
 
       # 导入历史数据
       - name: Import historical data
@@ -101,8 +144,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
-
-      - name: Delete temporary files
-        run: |
-          rm -rf historical_data
-          rm -rf historical_extracts
