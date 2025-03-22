@@ -169,6 +169,11 @@ def import_historical_data():
     logging.info("Historical data import completed")
 def process_single_commit(commit_hash, commit_date):
     """处理单个提交"""
+    # 检查日期是否在2024-06-08或之后
+    if commit_date < "2024-06-08":
+        logging.info(f"跳过 {commit_date} 的提交 {commit_hash}，因为它早于 2024-06-08")
+        return False
+        
     # 加载现有数据
     domains_rankings, domains_first_seen = load_domains_history()
     

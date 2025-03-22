@@ -34,30 +34,14 @@ jobs:
           mkdir -p historical_extracts
           cd historical_data
           
-          # 检查是否存在上次处理的日期记录
-          LAST_PROCESSED_DATE_FILE="../last_processed_date.txt"
-          START_DATE="2024-06-06"
-          
-          if [ -f $LAST_PROCESSED_DATE_FILE ]; then
-            LAST_DATE=$(cat $LAST_PROCESSED_DATE_FILE)
-            # 获取下一天的日期
-            NEXT_DATE=$(date -d "$LAST_DATE + 1 day" +%Y-%m-%d)
-            echo "上次处理到 $LAST_DATE，从 $NEXT_DATE 开始继续处理"
-            START_DATE=$NEXT_DATE
-          else
-            echo "没有找到上次处理记录，从 $START_DATE 开始处理"
-          fi
-          
-          # 获取指定日期之后的提交记录
-          git log --pretty=format:"%H %cs" --after="${START_DATE}T00:00:00" > ../historical_commits.txt
+          # 获取2024年6月8日之后的提交记录，使用更精确的日期格式
+          git log --pretty=format:"%H %cs" --after="2024-06-07T23:59:59" > ../historical_commits.txt
           
           # 检查提交记录数量
           commit_count=$(wc -l < ../historical_commits.txt)
           echo "找到 $commit_count 条提交记录"
           
-          if [ $commit_count -eq 0 ]; then
-            echo "没有找到新的提交记录，可能已经处理完所有数据"
-          elif [ $commit_count -lt 200 ] && [ "$START_DATE" == "2024-06-06" ]; then
+          if [ $commit_count -lt 200 ]; then
             echo "警告：提交记录数量少于预期（200+），可能需要增加克隆深度或检查日期过滤条件"
           fi
           
