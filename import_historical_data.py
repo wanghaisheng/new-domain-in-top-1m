@@ -121,6 +121,12 @@ def import_historical_data():
     # 按日期排序
     date_dirs.sort()
     
+    # 检查数据量是否足够
+    if len(date_dirs) < 200:
+        logging.warning(f"只找到 {len(date_dirs)} 个日期目录，预期应有200+个日期目录")
+        logging.warning("可能原因：1. Git仓库克隆深度不够 2. 提交记录过滤条件有问题 3. 部分日期没有提交记录")
+        logging.warning("建议在workflow中增加git clone深度，并检查git log过滤条件")
+    
     # 处理每个日期目录
     for date_dir in date_dirs:
         date = date_dir  # 目录名就是日期
@@ -244,21 +250,37 @@ def update_database(domains_rankings, domains_first_seen):
         
         # 批量更新域名首次出现日期
         if domains_to_update:
-            cursor.executemany(
-                "INSERT OR REPLACE INTO domains (first_seen, domain) VALUES (?, ?)", 
-                domains_to_update
-            )
-            logging.info(f"更新了 {len(domains_to_update)} 个域名的首次出现日期")
+            # 分批处理，每批10000条记录
+            batch_size = 10000
+            for i in range(0, len(domains_to_update), batch_size):
+                batch = domains_to_update[i:i+batch_size]
+                cursor.executemany(
+                    "INSERT OR REPLACE INTO domains (first_seen, domain) VALUES (?, ?)", 
+                    batch
+                )
+                logging.info(f"更新了域名首次出现日期批次 {i//batch_size + 1}/{(len(domains_to_update)-1)//batch_size + 1}")
+            logging.info(f"总共更新了 {len(domains_to_update)} 个域名的首次出现日期")
         
         # 批量导入域名首次出现日期（对于未更新的域名）
         domains_to_import = [(domain, first_seen) for domain, first_seen in domains_first_seen.items() 
                             if domain not in [d[1] for d in domains_to_update]]
+        
         if domains_to_import:
-            cursor.executemany(
-                "INSERT OR REPLACE INTO domains (domain, first_seen) VALUES (?, ?)", 
-                domains_to_import
-            )
-            logging.info(f"导入了 {len(domains_to_import)} 个域名的首次出现日期")
+            # 分批处理，每批10000条记录
+            batch_size = 10000
+            for i in range(0, len(domains_to_import), batch_size):
+                batch = domains_to_import[i:i+batch_size]
+                cursor.executemany(
+                    "INSERT OR REPLACE INTO domains (domain, first_seen) VALUES (?, ?)", 
+                    batch
+                )
+                logging.info(f"导入域名首次出现日期批次 {i//batch_size + 1}/{(len(domains_to_import)-1)//batch_size + 1}")
+            logging.info(f"总共导入了 {len(domains_to_import)} 个域名的首次出现日期")
+        
+        # 提交当前事务并开始新事务
+        conn.commit()
+        conn.execute("BEGIN TRANSACTION")
+        logging.info("域名首次出现日期更新完成，开始更新排名数据")
         
         # 获取所有年份 (从2024年6月7日开始)
         years = set()
@@ -307,34 +329,64 @@ def update_database(domains_rankings, domains_first_seen):
                     except Exception as e:
                         logging.error(f"Error adding column {date}: {e}")
             
-            # 批量更新排名数据
-            for domain, rankings in domains_rankings.items():
-                year_rankings = {date: rank for date, rank in rankings.items() 
-                               if date.startswith(f"{year}-") and (year > 2024 or date >= "2024-06-07")}
-                
-                if not year_rankings:
-                    continue
-                
-                # 检查域名是否已存在
-                cursor.execute(f"SELECT domain FROM {table_name} WHERE domain = ?", (domain,))
-                domain_exists = cursor.fetchone() is not None
-                
-                if not domain_exists:
-                    # 插入域名
-                    cursor.execute(f"INSERT INTO {table_name} (domain) VALUES (?)", (domain,))
-                
-                # 更新每个日期的排名
-                for date, rank in year_rankings.items():
-                    try:
-                        cursor.execute(f"UPDATE {table_name} SET '{date}' = ? WHERE domain = ?", (rank, domain))
-                    except Exception as e:
-                        logging.error(f"Error updating rank for domain {domain} on date {date}: {e}")
+            # 提交当前事务并开始新事务
+            conn.commit()
+            conn.execute("BEGIN TRANSACTION")
+            logging.info(f"表 {table_name} 结构更新完成，开始更新排名数据")
             
-            logging.info(f"Updated rankings for year {year}")
+            # 批量更新排名数据，分批处理域名
+            domains_list = list(domains_rankings.keys())
+            batch_size = 5000
+            total_batches = (len(domains_list) - 1) // batch_size + 1
+            
+            for batch_idx in range(0, len(domains_list), batch_size):
+                batch_domains = domains_list[batch_idx:batch_idx+batch_size]
+                batch_num = batch_idx // batch_size + 1
+                
+                for domain in batch_domains:
+                    year_rankings = {date: rank for date, rank in domains_rankings[domain].items() 
+                                   if date.startswith(f"{year}-") and (year > 2024 or date >= "2024-06-07")}
+                    
+                    if not year_rankings:
+                        continue
+                    
+                    # 检查域名是否已存在
+                    cursor.execute(f"SELECT domain FROM {table_name} WHERE domain = ?", (domain,))
+                    domain_exists = cursor.fetchone() is not None
+                    
+                    if not domain_exists:
+                        # 插入域名
+                        cursor.execute(f"INSERT INTO {table_name} (domain) VALUES (?)", (domain,))
+                    
+                    # 构建更新语句
+                    update_cols = []
+                    update_vals = []
+                    
+                    for date, rank in year_rankings.items():
+                        update_cols.append(f"'{date}' = ?")
+                        update_vals.append(rank)
+                    
+                    if update_cols:
+                        # 一次性更新所有日期的排名
+                        update_vals.append(domain)  # 添加WHERE条件的参数
+                        try:
+                            cursor.execute(
+                                f"UPDATE {table_name} SET {', '.join(update_cols)} WHERE domain = ?", 
+                                update_vals
+                            )
+                        except Exception as e:
+                            logging.error(f"Error updating ranks for domain {domain}: {e}")
+                
+                # 每批次提交一次，避免事务过大
+                conn.commit()
+                conn.execute("BEGIN TRANSACTION")
+                logging.info(f"已处理年份 {year} 的排名数据批次 {batch_num}/{total_batches}")
+            
+            logging.info(f"完成年份 {year} 的排名数据更新")
         
-        # 提交事务
+        # 提交最终事务
         conn.commit()
-        logging.info("Database updated successfully")
+        logging.info("数据库更新成功完成")
         
     except Exception as e:
         logging.error(f"Error updating database: {e}")

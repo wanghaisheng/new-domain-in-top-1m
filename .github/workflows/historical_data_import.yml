@@ -24,7 +24,8 @@ jobs:
       # 克隆历史数据仓库
       - name: Clone historical data repository
         run: |
-          git clone --depth=100 https://github.com/adysec/top_1m_domains.git historical_data
+          # 增加克隆深度，确保获取足够的历史记录
+          git clone --depth=500 https://github.com/adysec/top_1m_domains.git historical_data
           echo "历史数据仓库克隆完成"
 
       # 提取历史数据
@@ -33,8 +34,16 @@ jobs:
           mkdir -p historical_extracts
           cd historical_data
           
-          # 获取2024年6月7日之后的提交记录
-          git log --pretty=format:"%H %cs" --after="2024-06-06" > ../historical_commits.txt
+          # 获取2024年6月7日之后的提交记录，使用更精确的日期格式
+          git log --pretty=format:"%H %cs" --after="2024-06-06T00:00:00" > ../historical_commits.txt
+          
+          # 检查提交记录数量
+          commit_count=$(wc -l < ../historical_commits.txt)
+          echo "找到 $commit_count 条提交记录"
+          
+          if [ $commit_count -lt 200 ]; then
+            echo "警告：提交记录数量少于预期（200+），可能需要增加克隆深度或检查日期过滤条件"
+          fi
           
           cd ..
           
