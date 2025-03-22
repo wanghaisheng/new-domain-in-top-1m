@@ -3,6 +3,7 @@ name: Daily Domain Rank Update
 on:
   schedule:
     - cron: '0 0 * * *'  # 每天 UTC 00:00 (北京时间 08:00) 运行
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   update_and_commit:
@@ -17,20 +18,41 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install dependencies
+      - name: Install basic dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 psutil  # 删除 pandas，保留 sqlite3，但 sqlite3 通常已包含，无需显式安装
+          pip install requests beautifulsoup4 psutil gitpython
 
       - name: Download zip file
         run: |
           mkdir -p data
           wget https://tranco-list.eu/top-1m.csv.zip -O data/tranco.zip
 
-      - name: Run the script
-        run: python your_script_name.py  # 替换为你的脚本文件名
+      - name: Run the domain update script
+        run: python your_script_name.py
         env:
-          GITHUB_WORKSPACE: ${{ github.workspace }}  # 将 GitHub Workspace 路径传递给脚本
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+
+      - name: Install analysis dependencies
+        run: |
+          pip install pandas matplotlib
+          
+      # 添加排名变化分析步骤
+      - name: Run rank analysis
+        run: |
+          # 检查是否需要运行周报或月报
+          DAY_OF_WEEK=$(date +%u)
+          DAY_OF_MONTH=$(date +%d)
+          
+          if [ "$DAY_OF_MONTH" = "01" ]; then
+            echo "执行月度分析报告"
+            python rank_change_analyzer.py --period monthly
+          elif [ "$DAY_OF_WEEK" = "1" ]; then
+            echo "执行周度分析报告"
+            python rank_change_analyzer.py --period weekly
+          else
+            echo "今天不是计划的报告日期，跳过排名分析"
+          fi
 
       - name: Save new domains to CSV
         run: |
@@ -49,7 +71,18 @@ jobs:
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add domain_rank.db new_domains.csv  # 确保添加了你的数据库文件和 CSV 文件
+          git add domain_rank.db new_domains.txt domains_rankings.csv domains_first_seen.csv
+          
+          # 添加新域名目录
+          if [ -d "new_domains" ]; then
+            git add new_domains/
+          fi
+          
+          # 添加报告文件夹（如果存在）
+          if [ -d "reports" ]; then
+            git add reports/
+          fi
+          
           git commit -m "Daily update of domain rank database and new domains" || echo "No changes to commit"
 
       - name: Push changes
@@ -58,5 +91,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main  # 或者你的主分支
 
-      - name: Delete zip file
-        run: rm data/tranco.zip # 删除zip文件
+      - name: Delete temporary files
+        run: |
+          rm data/tranco.zip # 删除zip文件

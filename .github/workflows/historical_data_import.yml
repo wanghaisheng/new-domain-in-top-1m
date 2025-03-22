@@ -1,0 +1,85 @@
+name: Historical Data Import
+
+on:
+  workflow_dispatch:  # 仅允许手动触发
+
+jobs:
+  import_historical_data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 psutil gitpython
+
+      # 克隆历史数据仓库
+      - name: Clone historical data repository
+        run: |
+          git clone --depth=100 https://github.com/adysec/top_1m_domains.git historical_data
+          echo "历史数据仓库克隆完成"
+
+      # 提取历史数据
+      - name: Extract historical data
+        run: |
+          mkdir -p historical_extracts
+          cd historical_data
+          
+          # 获取2024年6月7日之后的提交记录
+          git log --pretty=format:"%H %cs" --after="2024-06-06" > ../historical_commits.txt
+          
+          cd ..
+          
+          # 处理每个提交
+          while read -r commit_hash commit_date; do
+            echo "处理 $commit_date 的提交 $commit_hash"
+            
+            # 检出特定提交
+            cd historical_data
+            git checkout $commit_hash
+            
+            # 如果存在zip文件，解压并复制到对应日期的目录
+            if [ -f "tranco.zip" ]; then
+              mkdir -p ../historical_extracts/$commit_date
+              cp tranco.zip ../historical_extracts/$commit_date/
+              cd ../historical_extracts/$commit_date/
+              unzip -q tranco.zip
+              echo "已提取 $commit_date 的数据"
+            fi
+            
+            cd ../../
+          done < historical_commits.txt
+          
+          echo "历史数据提取完成"
+
+      # 导入历史数据
+      - name: Import historical data
+        run: |
+          python import_historical_data.py
+          echo "历史数据导入完成"
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add domain_rank.db domains_rankings.csv domains_first_seen.csv
+          git commit -m "Import historical domain rank data" || echo "No changes to commit"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+
+      - name: Delete temporary files
+        run: |
+          rm -rf historical_data
+          rm -rf historical_extracts

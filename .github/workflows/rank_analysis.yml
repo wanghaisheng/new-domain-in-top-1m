@@ -1,0 +1,53 @@
+name: Domain Rank Analysis
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # 每周一 UTC 3:00 运行（对应北京时间 11:00）
+    - cron: '0 3 1 * *'  # 每月1日 UTC 3:00 运行（对应北京时间 11:00）
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # 获取完整历史以便能够推送更改
+        
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas matplotlib
+          
+      - name: Run rank analysis
+        run: |
+          # 获取当前日期
+          CURRENT_DATE=$(date +%Y-%m-%d)
+          DAY_OF_WEEK=$(date +%u)
+          DAY_OF_MONTH=$(date +%d)
+          
+          # 根据日期决定运行哪种报告
+          if [ "$DAY_OF_MONTH" = "01" ]; then
+            echo "执行月度分析报告"
+            python rank_change_analyzer.py --period monthly
+          elif [ "$DAY_OF_WEEK" = "1" ]; then
+            echo "执行周度分析报告"
+            python rank_change_analyzer.py --period weekly
+          else
+            echo "今天不是计划的报告日期，跳过执行"
+            exit 0
+          fi
+        
+      - name: Commit and push reports
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add reports/
+          git commit -m "Update rank analysis reports [skip ci]" || echo "No changes to commit"
+          git push

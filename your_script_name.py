@@ -36,6 +36,9 @@ def create_database():
         cursor.execute("PRAGMA cache_size=10000")  # 增加缓存大小
         cursor.execute("PRAGMA temp_store=MEMORY")  # 临时表存储在内存中
 
+        # 创建2025年的表
+        create_year_table(conn, 2025)
+
         conn.commit()
         logging.info(f"Database tables created successfully in {DB_FILE}")
     except Exception as e:
@@ -44,34 +47,139 @@ def create_database():
         if conn:
             conn.close()
 
+def create_year_table(conn, year):
+    """创建指定年份的排名表并添加所有日期列"""
+    cursor = conn.cursor()
+    table_name = f"rankings_{year}"
+    
+    # 检查表是否存在
+    cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+    table_exists = cursor.fetchone() is not None
+    
+    if not table_exists:
+        # 创建表
+        cursor.execute(f"""
+            CREATE TABLE {table_name} (
+                domain TEXT PRIMARY KEY
+            )
+        """)
+        logging.info(f"Created new table: {table_name}")
+        
+        # 为该年份的每一天添加列
+        from datetime import date, timedelta
+        
+        start_date = date(year, 1, 1)
+        # 检查是否是闰年
+        if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+            end_date = date(year, 12, 31)
+        else:
+            end_date = date(year, 12, 31)
+        
+        current_date = start_date
+        while current_date <= end_date:
+            date_str = current_date.strftime('%Y-%m-%d')
+            try:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN '{date_str}' INTEGER")
+                current_date += timedelta(days=1)
+            except Exception as e:
+                logging.error(f"Error adding column {date_str}: {e}")
+                current_date += timedelta(days=1)
+                continue
+        
+        logging.info(f"Added all date columns for year {year}")
+
+# 修改历史文件名和格式
+DOMAINS_HISTORY_FILE = 'domains_rankings.csv'  # 更改文件名以反映其内容
+DOMAINS_FIRST_SEEN_FILE = 'domains_first_seen.csv'  # 新增文件，记录域名首次出现日期
+
 def load_domains_history():
-    """从CSV文件加载历史域名数据"""
-    domains = {}
-    if os.path.exists(DOMAINS_HISTORY_FILE):
+    """从CSV文件加载历史域名数据和排名"""
+    domains_rankings = {}  # 域名排名历史
+    domains_first_seen = {}  # 域名首次出现日期
+    
+    # 加载域名首次出现日期
+    if os.path.exists(DOMAINS_FIRST_SEEN_FILE):
         try:
-            with open(DOMAINS_HISTORY_FILE, 'r', newline='', encoding='utf-8') as f:
+            with open(DOMAINS_FIRST_SEEN_FILE, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 next(reader)  # 跳过标题行
                 for row in reader:
                     if len(row) == 2:
                         domain, first_seen = row
-                        domains[domain] = first_seen
-            logging.info(f"Loaded {len(domains)} domains from history file")
+                        domains_first_seen[domain] = first_seen
+            logging.info(f"Loaded {len(domains_first_seen)} domains first seen dates")
         except Exception as e:
-            logging.error(f"Error loading domains history: {e}")
-    return domains
+            logging.error(f"Error loading domains first seen dates: {e}")
+    
+    # 加载域名排名历史
+    if os.path.exists(DOMAINS_HISTORY_FILE):
+        try:
+            with open(DOMAINS_HISTORY_FILE, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                headers = next(reader)  # 获取标题行（日期列）
+                
+                # 第一列是域名，其余列是日期
+                dates = headers[1:]
+                
+                for row in reader:
+                    if len(row) > 1:
+                        domain = row[0]
+                        domains_rankings[domain] = {}
+                        
+                        # 将每个日期的排名添加到域名的排名历史中
+                        for i, date in enumerate(dates):
+                            if i + 1 < len(row) and row[i + 1]:
+                                try:
+                                    domains_rankings[domain][date] = int(row[i + 1])
+                                except ValueError:
+                                    domains_rankings[domain][date] = 0
+            
+            logging.info(f"Loaded ranking history for {len(domains_rankings)} domains across {len(dates)} dates")
+        except Exception as e:
+            logging.error(f"Error loading domains ranking history: {e}")
+    
+    return domains_rankings, domains_first_seen
 
-def save_domains_history(domains):
-    """将域名数据保存到CSV文件"""
+def save_domains_history(domains_rankings, domains_first_seen, current_date):
+    """将域名排名数据保存到CSV文件"""
+    # 保存域名首次出现日期
     try:
-        with open(DOMAINS_HISTORY_FILE, 'w', newline='', encoding='utf-8') as f:
+        with open(DOMAINS_FIRST_SEEN_FILE, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(['domain', 'first_seen'])
-            for domain, first_seen in domains.items():
+            for domain, first_seen in domains_first_seen.items():
                 writer.writerow([domain, first_seen])
-        logging.info(f"Saved {len(domains)} domains to history file")
+        logging.info(f"Saved first seen dates for {len(domains_first_seen)} domains")
     except Exception as e:
-        logging.error(f"Error saving domains history: {e}")
+        logging.error(f"Error saving domains first seen dates: {e}")
+    
+    # 保存域名排名历史
+    try:
+        # 获取所有日期列
+        all_dates = set()
+        for domain_data in domains_rankings.values():
+            all_dates.update(domain_data.keys())
+        
+        # 按日期排序
+        sorted_dates = sorted(all_dates)
+        
+        with open(DOMAINS_HISTORY_FILE, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            # 写入标题行：域名和所有日期
+            header = ['domain'] + sorted_dates
+            writer.writerow(header)
+            
+            # 写入每个域名的排名数据
+            for domain, rankings in domains_rankings.items():
+                row = [domain]
+                for date in sorted_dates:
+                    row.append(rankings.get(date, 0))  # 如果没有排名，使用0
+                writer.writerow(row)
+        
+        logging.info(f"Saved ranking history for {len(domains_rankings)} domains across {len(sorted_dates)} dates")
+    except Exception as e:
+        logging.error(f"Error saving domains ranking history: {e}")
 
 def load_process_history():
     """加载处理历史记录"""
@@ -92,13 +200,17 @@ def save_process_history(history):
     except Exception as e:
         logging.error(f"Error saving process history: {e}")
 
+# 修复未定义变量 domains_history 的问题
 def update_database(zip_file):
     """更新数据库，并返回新出现的域名列表."""
     conn = None
     new_domains = []  # Initialize new_domains list
     
     # 加载历史域名数据
-    domains_history = load_domains_history()
+    domains_rankings, domains_first_seen = load_domains_history()
+    
+    # 检查是否是首次运行（没有历史数据）
+    is_first_run = len(domains_first_seen) == 0
     
     try:
         with zipfile.ZipFile(zip_file, 'r') as z:
@@ -130,18 +242,11 @@ def update_database(zip_file):
         # 开始事务 - 大幅提高批量插入性能
         conn.execute("BEGIN TRANSACTION")
         
-        # Check if the table exists
-        cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
-        table_exists = cursor.fetchone() is not None
-
-        if not table_exists:
-            # Create the table if it doesn't exist
-            cursor.execute(f"""
-                CREATE TABLE {table_name} (
-                    domain TEXT PRIMARY KEY
-                )
-            """)
-            logging.info(f"Created new table: {table_name}")
+        # 确保当前年份的表存在
+        create_year_table(conn, current_year)
+        
+        # 确保2025年的表存在
+        create_year_table(conn, 2025)
 
         # Check if the column exist
         cursor.execute(f"PRAGMA table_info({table_name})")
@@ -150,36 +255,51 @@ def update_database(zip_file):
             cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN '{date}' INTEGER")
             logging.info(f"Added new column {date} to table {table_name}")
 
-        # 批量导入历史域名数据
-        if domains_history:
-            domains_to_import = [(domain, first_seen) for domain, first_seen in domains_history.items()]
+        # 批量导入历史域名数据 - 修复这里的错误，使用 domains_first_seen 而不是 domains_history
+        if domains_first_seen:
+            domains_to_import = [(domain, first_seen) for domain, first_seen in domains_first_seen.items()]
             cursor.executemany(
                 "INSERT OR IGNORE INTO domains (domain, first_seen) VALUES (?, ?)", 
                 domains_to_import
             )
-            logging.info(f"Imported {len(domains_history)} domains from history file")
+            logging.info(f"Imported {len(domains_first_seen)} domains from history file")
 
         # 准备批量处理新数据
         domains_to_insert = []
         rankings_to_insert = []
         
         # 预处理数据
+        current_domains = set()  # 当前文件中的所有域名
+        
         for row in data:
             if len(row) == 2:
                 try:
                     rank = int(row[0].strip())
                     domain = row[1].strip()
+                    current_domains.add(domain)
                     
-                    # 检查域名是否已存在
-                    if domain not in domains_history:
-                        domains_to_insert.append((domain, date))
-                        new_domains.append(domain)
-                        domains_history[domain] = date
+                    # 更新排名历史
+                    if domain not in domains_rankings:
+                        domains_rankings[domain] = {}
+                    domains_rankings[domain][date] = rank
+                    
+                    # 检查是否为新域名
+                    if domain not in domains_first_seen:
+                        domains_first_seen[domain] = date
+                        domains_to_insert.append((domain, date))  # 添加到待插入列表
+                        # 只有在非首次运行时才将域名添加到new_domains
+                        if not is_first_run:
+                            new_domains.append(domain)
                     
                     rankings_to_insert.append((domain, rank, rank))
                     
                 except (ValueError, IndexError) as e:
                     logging.warning(f"Could not process row {row}: {e}")
+        
+        # 对于历史中存在但当前文件中不存在的域名，将其排名设为0
+        for domain in domains_rankings:
+            if domain not in current_domains:
+                domains_rankings[domain][date] = 0
         
         # 批量插入新域名
         if domains_to_insert:
@@ -187,7 +307,10 @@ def update_database(zip_file):
                 "INSERT OR IGNORE INTO domains (domain, first_seen) VALUES (?, ?)", 
                 domains_to_insert
             )
-            logging.info(f"Added {len(domains_to_insert)} new domains")
+            if is_first_run:
+                logging.info(f"First run: Added {len(domains_to_insert)} domains to history")
+            else:
+                logging.info(f"Added {len(domains_to_insert)} new domains")
         
         # 批量更新排名
         if rankings_to_insert:
@@ -205,13 +328,17 @@ def update_database(zip_file):
         conn.commit()
         
         # 导出最新的域名数据
-        save_domains_history(domains_history)
+        save_domains_history(domains_rankings, domains_first_seen, date)
         
         # 更新处理历史记录
         process_history = load_process_history()
         if date not in process_history['dates']:
             process_history['dates'].append(date)
         save_process_history(process_history)
+        
+        # 首次运行时记录日志
+        if is_first_run:
+            logging.info("First run detected - no new domains reported")
         
     except Exception as e:
         logging.error(f"Error updating database: {e}")
@@ -262,19 +389,36 @@ if __name__ == "__main__":
     # 创建数据库
     create_database()
 
+    # 创建新域名存储目录
+    new_domains_dir = os.path.join(github_workspace, "new_domains")
+    if not os.path.exists(new_domains_dir):
+        os.makedirs(new_domains_dir)
+        logging.info(f"Created directory for new domains: {new_domains_dir}")
+
     # 更新数据库
     new_domains = update_database(zip_file_path)
     if new_domains:
-        print(f"New domains added: {new_domains}")
+        print(f"New domains added: {len(new_domains)}")  # 只打印数量，避免输出过多
         # 添加日期后缀到文件名
         date_suffix = datetime.now().strftime('%Y-%m-%d')
-        new_domains_file = os.path.join(github_workspace, f"new_domains_{date_suffix}.txt")
-        with open(new_domains_file, "w") as f:
+        new_domains_file = os.path.join(new_domains_dir, f"{date_suffix}.txt")
+        with open(new_domains_file, "w", encoding='utf-8') as f:
             for domain in new_domains:
                 f.write(f"{domain}\n")
-        logging.info(f"New domains written to {new_domains_file}")
+        logging.info(f"{len(new_domains)} new domains written to {new_domains_file}")
+        
+        # 同时创建一个固定名称的文件，用于GitHub Actions
+        fixed_name_file = os.path.join(github_workspace, "new_domains.txt")
+        with open(fixed_name_file, "w", encoding='utf-8') as f:
+            for domain in new_domains:
+                f.write(f"{domain}\n")
     else:
         print("No new domains added today.")
+        # 创建空的固定名称文件，确保GitHub Actions不会失败
+        fixed_name_file = os.path.join(github_workspace, "new_domains.txt")
+        with open(fixed_name_file, "w", encoding='utf-8') as f:
+            pass
+        logging.info("Created empty new_domains.txt file")
     
     # 清理数据库文件
     cleanup_database()

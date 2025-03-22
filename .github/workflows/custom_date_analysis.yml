@@ -1,0 +1,59 @@
+name: Custom Date Range Analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: '开始日期 (YYYY-MM-DD)'
+        required: true
+        default: '2024-06-07'
+      end_date:
+        description: '结束日期 (YYYY-MM-DD)'
+        required: true
+        default: '2024-06-14'
+      report_name:
+        description: '报告名称'
+        required: false
+        default: '自定义日期报告'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas matplotlib
+
+      - name: Run custom date analysis
+        run: |
+          python rank_change_analyzer.py --period custom --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}" --report-name "${{ github.event.inputs.report_name }}"
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          
+          # 添加报告文件夹（如果存在）
+          if [ -d "reports" ]; then
+            git add reports/
+          fi
+          
+          git commit -m "添加自定义日期范围分析报告 (${{ github.event.inputs.start_date }} 至 ${{ github.event.inputs.end_date }})" || echo "No changes to commit"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
