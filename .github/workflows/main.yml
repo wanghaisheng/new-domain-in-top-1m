@@ -71,7 +71,7 @@ jobs:
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add domain_rank.db new_domains.txt domains_rankings.parquet domains_first_seen.parquet
+          git add  new_domains.txt domains_rankings.parquet domains_first_seen.parquet
           
           # 添加新域名目录
           if [ -d "new_domains" ]; then
