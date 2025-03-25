@@ -166,6 +166,15 @@ def process_single_commit(commit_hash, commit_date):
     start_time = datetime.now()
     logging.info(f"开始处理提交 {commit_hash} ({commit_date})")
     
+    # 检查是否已经处理过该提交
+    last_processed_file = "last_processed_date.txt"
+    if os.path.exists(last_processed_file):
+        with open(last_processed_file, 'r') as f:
+            last_date = f.read().strip()
+            if last_date >= commit_date:
+                logging.info(f"提交 {commit_hash} ({commit_date}) 已处理过，跳过")
+                return True
+    
     # 加载现有数据
     logging.info(f"正在加载现有数据...")
     domains_rankings, domains_first_seen = load_domains_history()
@@ -182,9 +191,9 @@ def process_single_commit(commit_hash, commit_date):
     csv_file = os.path.join(commit_dir, "top-1m.csv")
     
     processed = False
-    if os.path.exists(zip_file):
-        # 从zip文件读取数据
-        try:
+    try:
+        if os.path.exists(zip_file):
+            # 从zip文件读取数据
             logging.info(f"正在从zip文件读取数据: {zip_file}")
             with zipfile.ZipFile(zip_file, 'r') as z:
                 with z.open("top-1m.csv", 'r') as csvfile:
@@ -192,40 +201,39 @@ def process_single_commit(commit_hash, commit_date):
                     process_csv_data(reader, commit_date, domains_rankings, domains_first_seen)
             logging.info(f"Processed data from zip file for date: {commit_date}")
             processed = True
-        except Exception as e:
-            logging.error(f"Error processing zip file for date {commit_date}: {e}")
-    elif os.path.exists(csv_file):
-        # 直接从csv文件读取数据
-        try:
+        elif os.path.exists(csv_file):
+            # 直接从csv文件读取数据
             logging.info(f"正在从CSV文件读取数据: {csv_file}")
             with open(csv_file, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 process_csv_data(reader, commit_date, domains_rankings, domains_first_seen)
             logging.info(f"Processed data from CSV file for date: {commit_date}")
             processed = True
-        except Exception as e:
-            logging.error(f"Error processing CSV file for date {commit_date}: {e}")
-    else:
-        logging.warning(f"No data file found for date: {commit_date}")
-    
-    if processed:
-        # 保存更新后的数据
-        logging.info(f"正在保存域名排名和首次出现数据...")
-        save_start_time = datetime.now()
-        save_domains_history(domains_rankings, domains_first_seen)
-        logging.info(f"数据保存完成，耗时: {(datetime.now() - save_start_time).total_seconds():.2f}秒")
+        else:
+            logging.warning(f"No data file found for date: {commit_date}")
         
-        # 更新数据库
-        logging.info(f"正在更新数据库...")
-        db_start_time = datetime.now()
-        update_database(domains_rankings, domains_first_seen)
-        logging.info(f"数据库更新完成，耗时: {(datetime.now() - db_start_time).total_seconds():.2f}秒")
-        
-        total_time = (datetime.now() - start_time).total_seconds()
-        logging.info(f"提交 {commit_hash} ({commit_date}) 处理完成，总耗时: {total_time:.2f}秒")
-        
-        # 返回处理成功标志
-        return True
+        if processed:
+            # 保存更新后的数据
+            logging.info(f"正在保存域名排名和首次出现数据...")
+            save_start_time = datetime.now()
+            save_domains_history(domains_rankings, domains_first_seen)
+            logging.info(f"数据保存完成，耗时: {(datetime.now() - save_start_time).total_seconds():.2f}秒")
+            
+            # 更新数据库
+            logging.info(f"正在更新数据库...")
+            db_start_time = datetime.now()
+            update_database(domains_rankings, domains_first_seen)
+            logging.info(f"数据库更新完成，耗时: {(datetime.now() - db_start_time).total_seconds():.2f}秒")
+            
+            total_time = (datetime.now() - start_time).total_seconds()
+            logging.info(f"提交 {commit_hash} ({commit_date}) 处理完成，总耗时: {total_time:.2f}秒")
+            
+            # 返回处理成功标志
+            return True
+    except Exception as e:
+        logging.error(f"处理提交 {commit_hash} ({commit_date}) 时发生错误: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
     
     logging.warning(f"提交 {commit_hash} ({commit_date}) 处理失败")
     return False
