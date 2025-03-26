@@ -273,17 +273,3 @@ if __name__ == "__main__":
         f.write(script)
     
     print("已创建 import_data.py 脚本")
-
-def create_readme():
-    """创建README文件"""
-    readme = """# 历史数据导入工具
-
-这个工具集用于导入历史域名排名数据。
-
-## 使用方法
-
-### 1. 准备提交列表
-
-```bash
-python prepare_commits.py --start-date 2024-06-08 --end-date 2024-07-08
-```

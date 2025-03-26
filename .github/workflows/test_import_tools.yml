@@ -1,0 +1,94 @@
+name: Test Import Tools
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    paths:
+      - 'create_helper_scripts.py'
+      - 'import_historical_data.py'
+
+jobs:
+  test_import_tools:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 psutil gitpython pandas pyarrow
+      
+      - name: Run test workflow
+        run: |
+          # Create and run the test batch file
+          echo @echo off > test_workflow.bat
+          echo REM Test workflow for historical data import tools using relative paths >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo echo === Testing Historical Data Import Tools === >> test_workflow.bat
+          echo echo. >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo REM Step 1: Generate helper scripts >> test_workflow.bat
+          echo echo Step 1: Generating helper scripts... >> test_workflow.bat
+          echo python create_helper_scripts.py >> test_workflow.bat
+          echo echo. >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo REM Step 2: Prepare a small list of commits for testing >> test_workflow.bat
+          echo echo Step 2: Preparing commit list with a small date range... >> test_workflow.bat
+          echo python prepare_commits.py --start-date 2024-06-08 --end-date 2024-06-10 >> test_workflow.bat
+          echo echo. >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo REM Step 3: Process a limited number of commits >> test_workflow.bat
+          echo echo Step 3: Processing a limited number of commits... >> test_workflow.bat
+          echo python process_commits.py --max-commits 3 >> test_workflow.bat
+          echo echo. >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo REM Step 4: Import the processed data >> test_workflow.bat
+          echo echo Step 4: Importing processed data... >> test_workflow.bat
+          echo python import_data.py >> test_workflow.bat
+          echo echo. >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo REM Step 5: Verify results >> test_workflow.bat
+          echo echo Step 5: Verifying results... >> test_workflow.bat
+          echo echo Checking for output files: >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo if exist "domains_rankings.parquet" ( >> test_workflow.bat
+          echo     echo - domains_rankings.parquet: FOUND >> test_workflow.bat
+          echo ) else ( >> test_workflow.bat
+          echo     echo - domains_rankings.parquet: NOT FOUND >> test_workflow.bat
+          echo ) >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo if exist "domains_first_seen.parquet" ( >> test_workflow.bat
+          echo     echo - domains_first_seen.parquet: FOUND >> test_workflow.bat
+          echo ) else ( >> test_workflow.bat
+          echo     echo - domains_first_seen.parquet: NOT FOUND >> test_workflow.bat
+          echo ) >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo if exist "last_processed_date.txt" ( >> test_workflow.bat
+          echo     echo - last_processed_date.txt: FOUND >> test_workflow.bat
+          echo     echo   Last processed date:  >> test_workflow.bat
+          echo     type "last_processed_date.txt" >> test_workflow.bat
+          echo ) else ( >> test_workflow.bat
+          echo     echo - last_processed_date.txt: NOT FOUND >> test_workflow.bat
+          echo ) >> test_workflow.bat
+          echo. >> test_workflow.bat
+          echo echo. >> test_workflow.bat
+          echo echo === Test Complete === >> test_workflow.bat
+          
+          # Run the test batch file
+          .\test_workflow.bat
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: import-results
+          path: |
+            domains_rankings.parquet
+            domains_first_seen.parquet
+            last_processed_date.txt
