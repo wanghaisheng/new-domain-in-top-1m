@@ -241,6 +241,15 @@ def generate_new_domains():
     parser.add_argument('--end-date', type=str, help='结束日期 (YYYY-MM-DD)')
     args, _ = parser.parse_known_args()
     
+    # 记录输入的日期范围
+    if args.start_date or args.end_date:
+        date_range_msg = "日期范围过滤条件: "
+        if args.start_date:
+            date_range_msg += f"开始日期={args.start_date} "
+        if args.end_date:
+            date_range_msg += f"结束日期={args.end_date}"
+        logging.info(date_range_msg)
+    
     # 创建新域名目录
     os.makedirs('new_domains', exist_ok=True)
     
@@ -249,65 +258,79 @@ def generate_new_domains():
         date_mapping = {}
         historical_data_dir = 'historical_extracts'
         
+        # 检查历史数据目录是否存在
+        if not os.path.exists(historical_data_dir):
+            logging.error(f"历史数据目录不存在: {historical_data_dir}")
+            return False
+        
         # 获取所有日期目录
-        if os.path.exists(historical_data_dir):
-            date_dirs = [d for d in os.listdir(historical_data_dir) 
-                        if os.path.isdir(os.path.join(historical_data_dir, d))]
+        date_dirs = [d for d in os.listdir(historical_data_dir) 
+                    if os.path.isdir(os.path.join(historical_data_dir, d))]
+        
+        if not date_dirs:
+            logging.error(f"历史数据目录 {historical_data_dir} 中没有找到任何日期目录")
+            return False
             
-            # 从每个目录的date.txt文件中读取日期
-            for date_dir in date_dirs:
-                date_file = os.path.join(historical_data_dir, date_dir, "date.txt")
-                commit_file = os.path.join(historical_data_dir, date_dir, "commit_hash.txt")
-                
-                # 首先尝试从本地date.txt读取日期
-                if os.path.exists(date_file):
-                    try:
-                        with open(date_file, 'r') as f:
-                            actual_date = f.read().strip()
-                            # 验证日期格式 (YYYY-MM-DD)
-                            if re.match(r'^\d{4}-\d{2}-\d{2}$', actual_date):
-                                date_mapping[date_dir] = actual_date
-                                logging.info(f"目录 {date_dir} 对应日期(从date.txt): {actual_date}")
-                            else:
-                                logging.warning(f"日期格式不正确: {actual_date}，尝试其他方法")
-                    except Exception as e:
-                        logging.error(f"读取日期文件失败 {date_file}: {e}")
-                
-                # 如果本地没有有效的date.txt，尝试从GitHub获取
-                if date_dir not in date_mapping and os.path.exists(commit_file):
-                    try:
-                        with open(commit_file, 'r') as f:
-                            commit_hash = f.read().strip()
-                        
-                        # 构建GitHub上date.txt的URL
-                        date_url = f"https://github.com/adysec/top_1m_domains/raw/{commit_hash}/date.txt"
-                        logging.info(f"尝试从GitHub获取日期: {date_url}")
-                        
-                        # 下载date.txt
-                        response = requests.get(date_url, timeout=10)
-                        if response.status_code == 200:
-                            actual_date = response.text.strip()
-                            # 验证日期格式
-                            if re.match(r'^\d{4}-\d{2}-\d{2}$', actual_date):
-                                date_mapping[date_dir] = actual_date
-                                logging.info(f"目录 {date_dir} 对应日期(从GitHub): {actual_date}")
-                                
-                                # 保存到本地
-                                with open(date_file, 'w') as f:
-                                    f.write(actual_date)
-                                logging.info(f"已保存日期到本地: {date_file}")
-                            else:
-                                logging.warning(f"从GitHub获取的日期格式不正确: {actual_date}")
-                    except Exception as e:
-                        logging.error(f"从GitHub获取日期失败: {e}")
-                
-                # 如果仍然没有有效日期，使用目录名
-                if date_dir not in date_mapping:
-                    date_mapping[date_dir] = date_dir
-                    logging.warning(f"无法获取目录 {date_dir} 的日期，使用目录名作为日期")
+        logging.info(f"找到 {len(date_dirs)} 个日期目录")
+        
+        # 从每个目录的date.txt文件中读取日期
+        for date_dir in date_dirs:
+            date_file = os.path.join(historical_data_dir, date_dir, "date.txt")
+            commit_file = os.path.join(historical_data_dir, date_dir, "commit_hash.txt")
+            
+            # 首先尝试从本地date.txt读取日期
+            if os.path.exists(date_file):
+                try:
+                    with open(date_file, 'r') as f:
+                        actual_date = f.read().strip()
+                        # 验证日期格式 (YYYY-MM-DD)
+                        if re.match(r'^\d{4}-\d{2}-\d{2}$', actual_date):
+                            date_mapping[date_dir] = actual_date
+                            logging.info(f"目录 {date_dir} 对应日期(从date.txt): {actual_date}")
+                        else:
+                            logging.warning(f"日期格式不正确: {actual_date}，尝试其他方法")
+                except Exception as e:
+                    logging.error(f"读取日期文件失败 {date_file}: {e}")
+            
+            # 如果本地没有有效的date.txt，尝试从GitHub获取
+            if date_dir not in date_mapping and os.path.exists(commit_file):
+                try:
+                    with open(commit_file, 'r') as f:
+                        commit_hash = f.read().strip()
+                    
+                    # 构建GitHub上date.txt的URL
+                    date_url = f"https://github.com/adysec/top_1m_domains/raw/{commit_hash}/date.txt"
+                    logging.info(f"尝试从GitHub获取日期: {date_url}")
+                    
+                    # 下载date.txt
+                    response = requests.get(date_url, timeout=10)
+                    if response.status_code == 200:
+                        actual_date = response.text.strip()
+                        # 验证日期格式
+                        if re.match(r'^\d{4}-\d{2}-\d{2}$', actual_date):
+                            date_mapping[date_dir] = actual_date
+                            logging.info(f"目录 {date_dir} 对应日期(从GitHub): {actual_date}")
+                            
+                            # 保存到本地
+                            with open(date_file, 'w') as f:
+                                f.write(actual_date)
+                            logging.info(f"已保存日期到本地: {date_file}")
+                        else:
+                            logging.warning(f"从GitHub获取的日期格式不正确: {actual_date}")
+                except Exception as e:
+                    logging.error(f"从GitHub获取日期失败: {e}")
+            
+            # 如果仍然没有有效日期，使用目录名
+            if date_dir not in date_mapping:
+                date_mapping[date_dir] = date_dir
+                logging.warning(f"无法获取目录 {date_dir} 的日期，使用目录名作为日期")
+        
+        # 输出所有可用的日期
+        all_dates = sorted(list(set(date_mapping.values())))
+        logging.info(f"所有可用的日期: {all_dates}")
         
         # 过滤日期范围
-        filtered_dates = sorted(list(set(date_mapping.values())))
+        filtered_dates = all_dates.copy()
         if args.start_date:
             filtered_dates = [d for d in filtered_dates if d >= args.start_date]
             logging.info(f"应用开始日期过滤 {args.start_date}，剩余日期数: {len(filtered_dates)}")
@@ -315,6 +338,10 @@ def generate_new_domains():
         if args.end_date:
             filtered_dates = [d for d in filtered_dates if d <= args.end_date]
             logging.info(f"应用结束日期过滤 {args.end_date}，剩余日期数: {len(filtered_dates)}")
+        
+        if not filtered_dates:
+            logging.warning(f"在指定的日期范围内没有找到任何日期")
+            return False
         
         # 处理每个日期
         for commit_date in filtered_dates:
