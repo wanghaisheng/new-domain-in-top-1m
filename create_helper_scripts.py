@@ -96,8 +96,11 @@ if __name__ == "__main__":
     
     # 写入文件
     with open('prepare_commits.py', 'w', encoding='utf-8') as f:
-        # 修复换行符问题 - 使用正确的转义方式
-        fixed_script = script.replace('\\n', '\n')
+        # 修复换行符问题 - 使用正则表达式替换所有的转义序列
+        import re
+        fixed_script = re.sub(r'\\n', '\n', script)
+        # 特别处理f-string中的换行符问题
+        fixed_script = fixed_script.replace('{sha} {date}\\n', '{sha} {date}\\n')
         f.write(fixed_script)
     
     print("已创建 prepare_commits.py 脚本")
