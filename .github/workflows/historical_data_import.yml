@@ -11,10 +11,22 @@ on:
         description: '结束日期 (YYYY-MM-DD)'
         required: false
         default: ''
-      max_commits:
-        description: '单次运行最大处理提交数'
+      start_chunk:
+        description: '开始处理的块ID'
         required: false
-        default: '50'
+        default: ''
+      end_chunk:
+        description: '结束处理的块ID'
+        required: false
+        default: ''
+      batch_size:
+        description: '每批处理的域名数量'
+        required: false
+        default: '5000'
+      retry_failed:
+        description: '重试失败的块 (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   import_historical_data:
@@ -34,33 +46,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 psutil gitpython pandas pyarrow
 
-      # 创建辅助脚本
-      - name: Create helper scripts
-        run: |
-          python create_helper_scripts.py
-
       # 准备提交列表
       - name: Prepare commit list
         run: |
           python prepare_commits.py --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}"
 
-      # 处理每个提交
-      - name: Process commits
+      # 运行分块导入
+      - name: Run chunked import
         run: |
-          python process_commits.py --max-commits "${{ github.event.inputs.max_commits }}"
+          RETRY_FLAG=""
+          if [ "${{ github.event.inputs.retry_failed }}" = "true" ]; then
+            RETRY_FLAG="--retry-failed"
+          fi
+          
+          START_CHUNK=""
+          if [ ! -z "${{ github.event.inputs.start_chunk }}" ]; then
+            START_CHUNK="--start-chunk ${{ github.event.inputs.start_chunk }}"
+          fi
+          
+          END_CHUNK=""
+          if [ ! -z "${{ github.event.inputs.end_chunk }}" ]; then
+            END_CHUNK="--end-chunk ${{ github.event.inputs.end_chunk }}"
+          fi
+          
+          python run_chunked_import.py $START_CHUNK $END_CHUNK --batch-size ${{ github.event.inputs.batch_size }} $RETRY_FLAG
 
-      # 导入历史数据
-      - name: Import historical data
+      # 提交结果
+      - name: Commit results
         run: |
-          python import_historical_data.py
-          echo "历史数据导入完成"
-
-      - name: Commit changes
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git add domains_rankings.parquet domains_first_seen.parquet
-          git commit -m "Import historical domain rank data" || echo "No changes to commit"
+          python commit_results.py
 
       - name: Push changes
         uses: ad-m/github-push-action@master

@@ -4,8 +4,9 @@ on:
   workflow_dispatch:  # Manual trigger
   push:
     paths:
-      - 'create_helper_scripts.py'
-      - 'import_historical_data.py'
+      - 'import_historical_data_chunked.py'
+      - 'run_chunked_import.py'
+      - 'commit_results.py'
 
 jobs:
   test_import_tools:
@@ -31,51 +32,70 @@ jobs:
           cat > test_workflow.sh << 'EOF'
           #!/bin/bash
           
-          echo "=== Testing Historical Data Import Tools ==="
+          echo "=== Testing Chunked Historical Data Import Tools ==="
           echo ""
           
-          # Step 1: Generate helper scripts
-          echo "Step 1: Generating helper scripts..."
-          python create_helper_scripts.py
-          echo ""
-          
-          # Step 2: Prepare a small list of commits for testing
-          echo "Step 2: Preparing commit list with a small date range..."
+          # Step 1: Prepare a small list of commits for testing
+          echo "Step 1: Preparing commit list with a small date range..."
           python prepare_commits.py --start-date 2024-06-08 --end-date 2024-06-10
           echo ""
           
-          # Step 3: Process a limited number of commits
-          echo "Step 3: Processing a limited number of commits..."
-          python process_commits.py --max-commits 3
+          # Step 2: Create test directory structure
+          echo "Step 2: Creating test directory structure..."
+          mkdir -p historical_extracts/2024-06-08
+          mkdir -p historical_extracts/2024-06-09
+          mkdir -p historical_extracts/2024-06-10
+          
+          # Create dummy data files
+          echo "1,example.com" > historical_extracts/2024-06-08/top-1m.csv
+          echo "1,example.org" > historical_extracts/2024-06-09/top-1m.csv
+          echo "1,example.net" > historical_extracts/2024-06-10/top-1m.csv
           echo ""
           
-          # Step 4: Import the processed data
-          echo "Step 4: Importing processed data..."
-          python import_data.py
+          # Step 3: Process a single chunk
+          echo "Step 3: Processing a single chunk..."
+          python import_historical_data_chunked.py --chunk-id 1 --batch-size 1000
           echo ""
           
-          # Step 5: Verify results
-          echo "Step 5: Verifying results..."
+          # Step 4: Merge results
+          echo "Step 4: Merging results..."
+          python import_historical_data_chunked.py --merge-only
+          echo ""
+          
+          # Step 5: Commit results
+          echo "Step 5: Committing results (dry run)..."
+          # Just check if the script runs without errors
+          if [ -f "commit_results.py" ]; then
+            echo "commit_results.py exists, would run in production"
+          else
+            echo "commit_results.py not found"
+          fi
+          echo ""
+          
+          # Step 6: Verify results
+          echo "Step 6: Verifying results..."
           echo "Checking for output files:"
           
           if [ -f "domains_rankings.parquet" ]; then
               echo "- domains_rankings.parquet: FOUND"
+              python -c "import pandas as pd; df = pd.read_parquet('domains_rankings.parquet'); print(f'  Rows: {len(df)}')"
           else
               echo "- domains_rankings.parquet: NOT FOUND"
           fi
           
           if [ -f "domains_first_seen.parquet" ]; then
               echo "- domains_first_seen.parquet: FOUND"
+              python -c "import pandas as pd; df = pd.read_parquet('domains_first_seen.parquet'); print(f'  Rows: {len(df)}')"
           else
               echo "- domains_first_seen.parquet: NOT FOUND"
           fi
           
-          if [ -f "last_processed_date.txt" ]; then
-              echo "- last_processed_date.txt: FOUND"
-              echo "  Last processed date:"
-              cat "last_processed_date.txt"
+          if [ -f "import_checkpoint.json" ]; then
+              echo "- import_checkpoint.json: FOUND"
+              echo "  Checkpoint contents:"
+              cat "import_checkpoint.json"
           else
-              echo "- last_processed_date.txt: NOT FOUND"
+              echo "- import_checkpoint.json: NOT FOUND"
           fi
           
           echo ""
