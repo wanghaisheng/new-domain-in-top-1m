@@ -209,6 +209,11 @@ jobs:
         run: |
           # 检查结果文件
           echo "检查结果文件..."
+          
+          # 列出当前目录文件
+          echo "当前目录文件列表:"
+          ls -la
+          
           if [ -f "domains_rankings.parquet" ] && [ -f "domains_first_seen.parquet" ]; then
             echo "结果文件存在，准备提交..."
             
@@ -216,19 +221,45 @@ jobs:
             git config --local user.email "actions@github.com"
             git config --local user.name "GitHub Actions"
             
-            # 添加所有生成的文件
+            # 显示Git状态
+            echo "提交前Git状态:"
+            git status
+            
+            # 强制添加所有生成的文件
             echo "添加文件到Git..."
-            git add domains_rankings.parquet domains_first_seen.parquet
-            git add new_domains/
+            git add -f domains_rankings.parquet
+            git add -f domains_first_seen.parquet
+            
+            # 检查new_domains目录是否存在
+            if [ -d "new_domains" ]; then
+              echo "添加new_domains目录..."
+              git add -f new_domains/
+            else
+              echo "警告: new_domains目录不存在"
+              mkdir -p new_domains
+              echo "创建了空的new_domains目录"
+              git add -f new_domains/
+            fi
+            
+            # 再次显示Git状态
+            echo "添加文件后Git状态:"
+            git status
             
             # 检查是否有更改
-            CHANGES=$(git status --porcelain | wc -l)
+            CHANGES=$(git status --porcelain | grep -v '??' | wc -l)
+            echo "检测到 ${CHANGES} 个已暂存的更改"
+            
             if [ "$CHANGES" -gt 0 ]; then
-              echo "发现 ${CHANGES} 个文件更改，提交中..."
+              echo "提交更改..."
               git commit -m "Import historical domain rank data and generate new domains files"
               echo "提交成功"
             else
-              echo "没有文件更改，跳过提交"
+              echo "没有已暂存的更改，尝试强制提交..."
+              # 尝试强制提交
+              touch .gitkeep
+              git add .gitkeep
+              git commit -m "Import historical domain rank data (force commit)"
+              rm .gitkeep
             fi
           else
             echo "结果文件不存在，跳过提交"
