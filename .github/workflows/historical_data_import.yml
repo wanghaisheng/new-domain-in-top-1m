@@ -165,6 +165,44 @@ jobs:
           # 运行导入脚本
           echo "运行导入脚本..."
           python run_chunked_import.py --start-chunk ${{ github.event.inputs.start_chunk }} --end-chunk ${END_CHUNK} --batch-size ${{ github.event.inputs.batch_size }} ${RETRY_FLAG}
+          
+          # 生成每日新域名文件
+          echo "生成每日新域名文件..."
+          mkdir -p new_domains
+          python -c "
+          import pandas as pd
+          import os
+          from datetime import datetime
+          
+          # 加载域名首次出现数据
+          print('加载域名首次出现数据...')
+          df_first_seen = pd.read_parquet('domains_first_seen.parquet')
+          
+          # 获取所有日期目录
+          date_dirs = sorted([d for d in os.listdir('historical_extracts') if os.path.isdir(os.path.join('historical_extracts', d))])
+          print(f'找到 {len(date_dirs)} 个日期目录')
+          
+          # 处理每个日期
+          for date_str in date_dirs:
+              try:
+                  # 解析日期
+                  date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                  
+                  # 查找在该日期首次出现的域名
+                  new_domains = df_first_seen[df_first_seen['first_seen'] == date_str]
+                  
+                  if not new_domains.empty:
+                      # 创建输出文件
+                      output_file = f'new_domains/{date_str}.csv'
+                      new_domains[['domain']].to_csv(output_file, index=False)
+                      print(f'已生成 {date_str} 的新域名文件，包含 {len(new_domains)} 个域名')
+                  else:
+                      print(f'{date_str} 没有新域名')
+              except Exception as e:
+                  print(f'处理 {date_str} 时出错: {str(e)}')
+          
+          print('每日新域名文件生成完成')
+          "
 
       # 提交结果
       - name: Commit results
@@ -173,7 +211,25 @@ jobs:
           echo "检查结果文件..."
           if [ -f "domains_rankings.parquet" ] && [ -f "domains_first_seen.parquet" ]; then
             echo "结果文件存在，准备提交..."
-            python commit_results.py
+            
+            # 配置Git
+            git config --local user.email "actions@github.com"
+            git config --local user.name "GitHub Actions"
+            
+            # 添加所有生成的文件
+            echo "添加文件到Git..."
+            git add domains_rankings.parquet domains_first_seen.parquet
+            git add new_domains/
+            
+            # 检查是否有更改
+            CHANGES=$(git status --porcelain | wc -l)
+            if [ "$CHANGES" -gt 0 ]; then
+              echo "发现 ${CHANGES} 个文件更改，提交中..."
+              git commit -m "Import historical domain rank data and generate new domains files"
+              echo "提交成功"
+            else
+              echo "没有文件更改，跳过提交"
+            fi
           else
             echo "结果文件不存在，跳过提交"
             ls -la
