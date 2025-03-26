@@ -18,7 +18,7 @@ on:
       end_chunk:
         description: '结束处理的块ID'
         required: false
-        default: ''
+        default: '0'
       batch_size:
         description: '每批处理的域名数量'
         required: false
@@ -48,8 +48,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 psutil gitpython pandas pyarrow
 
-      # 创建历史数据目录
-      - name: Create historical data directory
+      # 创建历史数据目录并下载数据文件
+      - name: Create historical data directory and download data
         run: |
           mkdir -p historical_extracts
           
@@ -62,40 +62,106 @@ jobs:
             # 获取日期范围内的所有提交
             git log --after="${START_DATE}" --before="${END_DATE}" --format="%H %cs" > commit_list.txt
             
-            # 为每个提交创建目录
+            # 为每个提交创建目录并下载数据
             while read -r commit_hash commit_date; do
-              mkdir -p "historical_extracts/${commit_date}"
-              echo "${commit_hash}" > "historical_extracts/${commit_date}/commit_hash.txt"
+              echo "处理提交: ${commit_hash} (${commit_date})"
+              
+              # 先尝试获取date.txt文件内容来确定实际日期
+              DATE_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/date.txt"
+              echo "尝试获取日期文件: ${DATE_URL}"
+              
+              ACTUAL_DATE=""
+              if curl -s --head "${DATE_URL}" | head -n 1 | grep "200" > /dev/null; then
+                ACTUAL_DATE=$(curl -s "${DATE_URL}")
+                # 格式化日期为YYYY-MM-DD
+                if [[ ${#ACTUAL_DATE} -eq 8 ]]; then
+                  FORMATTED_DATE="${ACTUAL_DATE:0:4}-${ACTUAL_DATE:4:2}-${ACTUAL_DATE:6:2}"
+                  echo "从date.txt获取到的日期: ${ACTUAL_DATE}, 格式化为: ${FORMATTED_DATE}"
+                  ACTUAL_DATE="${FORMATTED_DATE}"
+                else
+                  echo "date.txt内容格式不正确: ${ACTUAL_DATE}，使用提交日期"
+                  ACTUAL_DATE="${commit_date}"
+                fi
+              else
+                echo "date.txt文件不存在，使用提交日期"
+                ACTUAL_DATE="${commit_date}"
+              fi
+              
+              # 创建目录
+              mkdir -p "historical_extracts/${ACTUAL_DATE}"
+              echo "${commit_hash}" > "historical_extracts/${ACTUAL_DATE}/commit_hash.txt"
+              
+              # 尝试从GitHub下载对应提交的tranco.zip文件
+              DOWNLOAD_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco.zip"
+              echo "尝试下载: ${DOWNLOAD_URL}"
+              
+              if curl -s --head "${DOWNLOAD_URL}" | head -n 1 | grep "200" > /dev/null; then
+                echo "下载数据文件: ${DOWNLOAD_URL}"
+                curl -s -o "historical_extracts/${ACTUAL_DATE}/tranco.zip" "${DOWNLOAD_URL}"
+                echo "数据文件已保存到: historical_extracts/${ACTUAL_DATE}/tranco.zip"
+                
+                # 解压zip文件
+                echo "解压数据文件..."
+                unzip -q -o "historical_extracts/${ACTUAL_DATE}/tranco.zip" -d "historical_extracts/${ACTUAL_DATE}/"
+                echo "数据文件已解压"
+              else
+                echo "数据文件不存在: ${DOWNLOAD_URL}"
+                # 创建一个空的CSV文件，避免处理时报错
+                echo "rank,domain" > "historical_extracts/${ACTUAL_DATE}/top-1m.csv"
+              fi
             done < commit_list.txt
           else
             # 如果存在prepare_commits.py，则使用它
             python prepare_commits.py --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}"
           fi
+          
+          # 列出创建的目录和文件
+          echo "创建的目录和文件列表:"
+          find historical_extracts -type f | sort
 
       # 运行分块导入
       - name: Run chunked import
         run: |
+          # 先检查数据块数量
+          echo "检查数据块数量..."
+          TOTAL_CHUNKS=$(python -c "
+          import os
+          commit_dirs = [d for d in os.listdir('historical_extracts') if os.path.isdir(os.path.join('historical_extracts', d))]
+          chunk_size = 30
+          total_chunks = (len(commit_dirs) + chunk_size - 1) // chunk_size
+          print(total_chunks)
+          ")
+          echo "总数据块数量: ${TOTAL_CHUNKS}"
+          
+          # 设置结束块ID
+          END_CHUNK="${{ github.event.inputs.end_chunk }}"
+          if [ -z "${END_CHUNK}" ] || [ "${END_CHUNK}" = "" ]; then
+            END_CHUNK=$((TOTAL_CHUNKS - 1))
+            echo "设置结束块ID为: ${END_CHUNK}"
+          fi
+          
+          # 设置重试标志
           RETRY_FLAG=""
           if [ "${{ github.event.inputs.retry_failed }}" = "true" ]; then
             RETRY_FLAG="--retry-failed"
           fi
           
-          START_CHUNK=""
-          if [ ! -z "${{ github.event.inputs.start_chunk }}" ]; then
-            START_CHUNK="--start-chunk ${{ github.event.inputs.start_chunk }}"
-          fi
-          
-          END_CHUNK=""
-          if [ ! -z "${{ github.event.inputs.end_chunk }}" ]; then
-            END_CHUNK="--end-chunk ${{ github.event.inputs.end_chunk }}"
-          fi
-          
-          python run_chunked_import.py $START_CHUNK $END_CHUNK --batch-size ${{ github.event.inputs.batch_size }} $RETRY_FLAG
+          # 运行导入脚本
+          echo "运行导入脚本..."
+          python run_chunked_import.py --start-chunk ${{ github.event.inputs.start_chunk }} --end-chunk ${END_CHUNK} --batch-size ${{ github.event.inputs.batch_size }} ${RETRY_FLAG}
 
       # 提交结果
       - name: Commit results
         run: |
-          python commit_results.py
+          # 检查结果文件
+          echo "检查结果文件..."
+          if [ -f "domains_rankings.parquet" ] && [ -f "domains_first_seen.parquet" ]; then
+            echo "结果文件存在，准备提交..."
+            python commit_results.py
+          else
+            echo "结果文件不存在，跳过提交"
+            ls -la
+          fi
 
       - name: Push changes
         uses: ad-m/github-push-action@master
