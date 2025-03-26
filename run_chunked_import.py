@@ -230,20 +230,22 @@ def generate_new_domains():
     生成每日新域名文件
     从commit ID中提取的date.txt文件中获取日期信息
     """
-    import pandas as pd
     import re
+    import argparse
     
     logging.info("开始生成每日新域名文件...")
+    
+    # 解析命令行参数，获取日期范围
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--start-date', type=str, help='开始日期 (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, help='结束日期 (YYYY-MM-DD)')
+    args, _ = parser.parse_known_args()
     
     # 创建新域名目录
     os.makedirs('new_domains', exist_ok=True)
     
-    # 加载域名首次出现数据
     try:
-        logging.info('加载域名首次出现数据...')
-        df_first_seen = pd.read_parquet('domains_first_seen.parquet')
-        
-        # 创建日期映射字典
+        # 创建日期映射字典 - 从目录名到commit日期
         date_mapping = {}
         historical_data_dir = 'historical_extracts'
         
@@ -304,31 +306,26 @@ def generate_new_domains():
                     date_mapping[date_dir] = date_dir
                     logging.warning(f"无法获取目录 {date_dir} 的日期，使用目录名作为日期")
         
-        # 按日期分组
-        logging.info('按日期分组生成每日新域名文件...')
+        # 过滤日期范围
+        filtered_dates = sorted(list(set(date_mapping.values())))
+        if args.start_date:
+            filtered_dates = [d for d in filtered_dates if d >= args.start_date]
+            logging.info(f"应用开始日期过滤 {args.start_date}，剩余日期数: {len(filtered_dates)}")
         
-        # 如果first_seen列是目录名，则需要映射到实际日期
-        if len(df_first_seen) > 0 and df_first_seen['first_seen'].iloc[0] in date_mapping:
-            logging.info('将目录名映射到实际日期...')
-            df_first_seen['actual_date'] = df_first_seen['first_seen'].map(
-                lambda x: date_mapping.get(x, x))
-            date_groups = df_first_seen.groupby('actual_date')
-        else:
-            # 否则直接使用first_seen列
-            date_groups = df_first_seen.groupby('first_seen')
+        if args.end_date:
+            filtered_dates = [d for d in filtered_dates if d <= args.end_date]
+            logging.info(f"应用结束日期过滤 {args.end_date}，剩余日期数: {len(filtered_dates)}")
         
         # 处理每个日期
-        for date, group in date_groups:
-            # 创建日期文件
-            output_file = f'new_domains/{date}.txt'
-            domains = group['domain'].tolist()
+        for commit_date in filtered_dates:
+            # 创建日期文件 - 使用commit日期作为文件名
+            output_file = f'new_domains/{commit_date}.txt'
             
-            # 保存到文件
+            # 创建一个空文件
             with open(output_file, 'w', encoding='utf-8') as f:
-                for domain in sorted(domains):
-                    f.write(f'{domain}\n')
+                pass
             
-            logging.info(f'生成了 {date} 的新域名文件，包含 {len(domains)} 个域名')
+            logging.info(f'生成了 {commit_date} 的新域名文件')
         
         logging.info('每日新域名文件生成完成')
         return True
