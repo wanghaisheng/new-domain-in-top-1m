@@ -58,25 +58,31 @@ jobs:
           echo echo Step 5: Verifying results... >> test_workflow.bat
           echo echo Checking for output files: >> test_workflow.bat
           echo. >> test_workflow.bat
-          echo if exist "domains_rankings.parquet" ( >> test_workflow.bat
-          echo     echo - domains_rankings.parquet: FOUND >> test_workflow.bat
-          echo ) else ( >> test_workflow.bat
-          echo     echo - domains_rankings.parquet: NOT FOUND >> test_workflow.bat
-          echo ) >> test_workflow.bat
+          
+          echo "echo if exist domains_rankings.parquet (" >> test_workflow.bat
+          echo "    echo - domains_rankings.parquet: FOUND" >> test_workflow.bat
+          echo ") else (" >> test_workflow.bat
+          echo "    echo - domains_rankings.parquet: NOT FOUND" >> test_workflow.bat
+          echo ")" >> test_workflow.bat
+          
           echo. >> test_workflow.bat
-          echo if exist "domains_first_seen.parquet" ( >> test_workflow.bat
-          echo     echo - domains_first_seen.parquet: FOUND >> test_workflow.bat
-          echo ) else ( >> test_workflow.bat
-          echo     echo - domains_first_seen.parquet: NOT FOUND >> test_workflow.bat
-          echo ) >> test_workflow.bat
+          
+          echo "echo if exist domains_first_seen.parquet (" >> test_workflow.bat
+          echo "    echo - domains_first_seen.parquet: FOUND" >> test_workflow.bat
+          echo ") else (" >> test_workflow.bat
+          echo "    echo - domains_first_seen.parquet: NOT FOUND" >> test_workflow.bat
+          echo ")" >> test_workflow.bat
+          
           echo. >> test_workflow.bat
-          echo if exist "last_processed_date.txt" ( >> test_workflow.bat
-          echo     echo - last_processed_date.txt: FOUND >> test_workflow.bat
-          echo     echo   Last processed date:  >> test_workflow.bat
-          echo     type "last_processed_date.txt" >> test_workflow.bat
-          echo ) else ( >> test_workflow.bat
-          echo     echo - last_processed_date.txt: NOT FOUND >> test_workflow.bat
-          echo ) >> test_workflow.bat
+          
+          echo "echo if exist last_processed_date.txt (" >> test_workflow.bat
+          echo "    echo - last_processed_date.txt: FOUND" >> test_workflow.bat
+          echo "    echo   Last processed date: " >> test_workflow.bat
+          echo "    type last_processed_date.txt" >> test_workflow.bat
+          echo ") else (" >> test_workflow.bat
+          echo "    echo - last_processed_date.txt: NOT FOUND" >> test_workflow.bat
+          echo ")" >> test_workflow.bat
+          
           echo. >> test_workflow.bat
           echo echo. >> test_workflow.bat
           echo echo === Test Complete === >> test_workflow.bat
