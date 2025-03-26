@@ -10,11 +10,11 @@ on:
       end_date:
         description: '结束日期 (YYYY-MM-DD)'
         required: false
-        default: ''
+        default: '2025-03-25'
       start_chunk:
         description: '开始处理的块ID'
         required: false
-        default: ''
+        default: '0'
       end_chunk:
         description: '结束处理的块ID'
         required: false
@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 获取完整历史记录，以便访问所有提交
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -46,10 +48,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 psutil gitpython pandas pyarrow
 
-      # 准备提交列表
-      - name: Prepare commit list
+      # 创建历史数据目录
+      - name: Create historical data directory
         run: |
-          python prepare_commits.py --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}"
+          mkdir -p historical_extracts
+          
+          # 如果没有prepare_commits.py，则直接从Git历史中获取日期
+          if [ ! -f "prepare_commits.py" ]; then
+            echo "直接从Git历史中获取日期范围"
+            START_DATE="${{ github.event.inputs.start_date }}"
+            END_DATE="${{ github.event.inputs.end_date }}"
+            
+            # 获取日期范围内的所有提交
+            git log --after="${START_DATE}" --before="${END_DATE}" --format="%H %cs" > commit_list.txt
+            
+            # 为每个提交创建目录
+            while read -r commit_hash commit_date; do
+              mkdir -p "historical_extracts/${commit_date}"
+              echo "${commit_hash}" > "historical_extracts/${commit_date}/commit_hash.txt"
+            done < commit_list.txt
+          else
+            # 如果存在prepare_commits.py，则使用它
+            python prepare_commits.py --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}"
+          fi
 
       # 运行分块导入
       - name: Run chunked import
