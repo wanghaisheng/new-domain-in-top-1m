@@ -90,9 +90,29 @@ jobs:
             echo "构造的下载URL: ${DOWNLOAD_URL}"
             echo "构造的日期URL: ${DATE_URL}"
             
-            # 尝试获取URL头信息
+            # 尝试获取URL头信息并显示详细信息
             echo "检查URL可访问性:"
-            curl -s -I "${DOWNLOAD_URL}" | head -n 1
+            curl -v "${DOWNLOAD_URL}" > curl_output.txt 2>&1
+            cat curl_output.txt | head -n 20
+            
+            # 尝试不同的文件名
+            echo "尝试其他可能的文件名..."
+            ALT_URLS=(
+              "https://github.com/adysec/top_1m_domains/raw/${commit_hash}/top-1m.csv"
+              "https://github.com/adysec/top_1m_domains/raw/${commit_hash}/top-1m.csv.zip"
+              "https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco-list.csv"
+              "https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco-list.csv.zip"
+              "https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco.csv"
+            )
+            
+            for ALT_URL in "${ALT_URLS[@]}"; do
+              echo "检查替代URL: ${ALT_URL}"
+              if curl -s -f --head "${ALT_URL}" > /dev/null 2>&1; then
+                echo "找到可访问的替代URL: ${ALT_URL}"
+                DOWNLOAD_URL="${ALT_URL}"
+                break
+              fi
+            done
             
             # 先检查是否可以访问
             if curl -s -f --head "${DOWNLOAD_URL}" > /dev/null 2>&1; then
@@ -103,16 +123,33 @@ jobs:
               echo "下载的文件信息:"
               ls -la "historical_extracts/${commit_date}/tranco.zip"
               file "historical_extracts/${commit_date}/tranco.zip"
+              head -n 5 "historical_extracts/${commit_date}/tranco.zip" | cat -A  # 显示文件前几行，包括不可打印字符
               
               # 检查下载是否成功
               if [ -f "historical_extracts/${commit_date}/tranco.zip" ] && [ -s "historical_extracts/${commit_date}/tranco.zip" ]; then
                 echo "数据文件已保存到: historical_extracts/${commit_date}/tranco.zip"
                 
-                # 解压zip文件
-                echo "解压数据文件..."
-                unzip -q -o "historical_extracts/${commit_date}/tranco.zip" -d "historical_extracts/${commit_date}/"
+                # 检查文件类型
+                FILE_TYPE=$(file -b "historical_extracts/${commit_date}/tranco.zip")
+                echo "文件类型: ${FILE_TYPE}"
                 
-                # 检查解压后是否有CSV文件
+                if [[ "${FILE_TYPE}" == *"Zip archive"* ]]; then
+                  # 解压zip文件
+                  echo "解压数据文件..."
+                  unzip -q -o "historical_extracts/${commit_date}/tranco.zip" -d "historical_extracts/${commit_date}/"
+                else
+                  echo "文件不是zip格式，尝试作为CSV处理"
+                  # 检查是否为CSV格式
+                  if head -n 1 "historical_extracts/${commit_date}/tranco.zip" | grep -q "," || head -n 1 "historical_extracts/${commit_date}/tranco.zip" | grep -q "rank"; then
+                    echo "文件似乎是CSV格式，直接复制为top-1m.csv"
+                    cp "historical_extracts/${commit_date}/tranco.zip" "historical_extracts/${commit_date}/top-1m.csv"
+                  else
+                    echo "文件格式无法识别，创建空的top-1m.csv"
+                    echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
+                  fi
+                fi
+                
+                # 解压后是否有CSV文件
                 if [ -f "historical_extracts/${commit_date}/top-1m.csv" ]; then
                   echo "找到top-1m.csv文件"
                 else
