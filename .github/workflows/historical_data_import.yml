@@ -53,77 +53,83 @@ jobs:
         run: |
           mkdir -p historical_extracts
           
-          # 如果没有prepare_commits.py，则直接从Git历史中获取日期
-          if [ ! -f "prepare_commits.py" ]; then
-            echo "直接从Git历史中获取日期范围"
-            START_DATE="${{ github.event.inputs.start_date }}"
-            END_DATE="${{ github.event.inputs.end_date }}"
+          # 克隆目标仓库以获取提交历史
+          echo "克隆目标仓库以获取提交历史..."
+          git clone --bare https://github.com/adysec/top_1m_domains.git target_repo
+          cd target_repo
+          
+          # 获取日期范围内的所有提交
+          echo "获取提交历史..."
+          START_DATE="${{ github.event.inputs.start_date }}"
+          END_DATE="${{ github.event.inputs.end_date }}"
+          git log --after="${START_DATE}" --before="${END_DATE}" --format="%H %cs" > ../commit_list.txt
+          cd ..
+          
+          # 显示找到的提交数量
+          COMMIT_COUNT=$(wc -l < commit_list.txt)
+          echo "找到 ${COMMIT_COUNT} 个提交"
+          
+          # 为每个提交创建目录并下载数据
+          while read -r commit_hash commit_date; do
+            echo "处理提交: ${commit_hash} (${commit_date})"
             
-            # 获取日期范围内的所有提交
-            git log --after="${START_DATE}" --before="${END_DATE}" --format="%H %cs" > commit_list.txt
+            # 创建目录
+            mkdir -p "historical_extracts/${commit_date}"
+            echo "${commit_hash}" > "historical_extracts/${commit_date}/commit_hash.txt"
             
-            # 为每个提交创建目录并下载数据
-            while read -r commit_hash commit_date; do
-              echo "处理提交: ${commit_hash} (${commit_date})"
+            # 使用完整的提交哈希构建URL
+            DOWNLOAD_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco.zip"
+            DATE_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/date.txt"
+            
+            echo "尝试下载: ${DOWNLOAD_URL}"
+            
+            # 先检查是否可以访问
+            if curl -s -f --head "${DOWNLOAD_URL}" > /dev/null 2>&1; then
+              echo "下载数据文件: ${DOWNLOAD_URL}"
+              curl -s -o "historical_extracts/${commit_date}/tranco.zip" "${DOWNLOAD_URL}"
               
-              # 创建目录
-              mkdir -p "historical_extracts/${commit_date}"
-              echo "${commit_hash}" > "historical_extracts/${commit_date}/commit_hash.txt"
-              
-              # 使用完整的提交哈希构建URL
-              DOWNLOAD_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco.zip"
-              DATE_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/date.txt"
-              
-              echo "尝试下载: ${DOWNLOAD_URL}"
-              
-              # 先检查是否可以访问
-              if curl -s -f --head "${DOWNLOAD_URL}" > /dev/null 2>&1; then
-                echo "下载数据文件: ${DOWNLOAD_URL}"
-                curl -s -o "historical_extracts/${commit_date}/tranco.zip" "${DOWNLOAD_URL}"
+              # 检查下载是否成功
+              if [ -f "historical_extracts/${commit_date}/tranco.zip" ] && [ -s "historical_extracts/${commit_date}/tranco.zip" ]; then
+                echo "数据文件已保存到: historical_extracts/${commit_date}/tranco.zip"
                 
-                # 检查下载是否成功
-                if [ -f "historical_extracts/${commit_date}/tranco.zip" ] && [ -s "historical_extracts/${commit_date}/tranco.zip" ]; then
-                  echo "数据文件已保存到: historical_extracts/${commit_date}/tranco.zip"
-                  
-                  # 解压zip文件
-                  echo "解压数据文件..."
-                  unzip -q -o "historical_extracts/${commit_date}/tranco.zip" -d "historical_extracts/${commit_date}/"
-                  
-                  # 检查解压后是否有CSV文件
-                  if [ -f "historical_extracts/${commit_date}/top-1m.csv" ]; then
-                    echo "找到top-1m.csv文件"
-                  else
-                    # 查找任何CSV文件并重命名为top-1m.csv
-                    CSV_FILE=$(find "historical_extracts/${commit_date}/" -name "*.csv" | head -n 1)
-                    if [ ! -z "${CSV_FILE}" ]; then
-                      echo "找到CSV文件: ${CSV_FILE}，重命名为top-1m.csv"
-                      cp "${CSV_FILE}" "historical_extracts/${commit_date}/top-1m.csv"
-                    else
-                      echo "未找到CSV文件，创建空的top-1m.csv"
-                      echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
-                    fi
-                  fi
+                # 解压zip文件
+                echo "解压数据文件..."
+                unzip -q -o "historical_extracts/${commit_date}/tranco.zip" -d "historical_extracts/${commit_date}/"
+                
+                # 检查解压后是否有CSV文件
+                if [ -f "historical_extracts/${commit_date}/top-1m.csv" ]; then
+                  echo "找到top-1m.csv文件"
                 else
-                  echo "下载失败，创建空的top-1m.csv"
-                  echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
+                  # 查找任何CSV文件并重命名为top-1m.csv
+                  CSV_FILE=$(find "historical_extracts/${commit_date}/" -name "*.csv" | head -n 1)
+                  if [ ! -z "${CSV_FILE}" ]; then
+                    echo "找到CSV文件: ${CSV_FILE}，重命名为top-1m.csv"
+                    cp "${CSV_FILE}" "historical_extracts/${commit_date}/top-1m.csv"
+                  else
+                    echo "未找到CSV文件，创建空的top-1m.csv"
+                    echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
+                  fi
                 fi
               else
-                echo "数据文件不存在或无法访问: ${DOWNLOAD_URL}"
-                echo "创建空的top-1m.csv"
+                echo "下载失败，创建空的top-1m.csv"
                 echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
               fi
-              
-              # 尝试获取date.txt文件
-              if curl -s -f --head "${DATE_URL}" > /dev/null 2>&1; then
-                echo "下载日期文件: ${DATE_URL}"
-                curl -s -o "historical_extracts/${commit_date}/date.txt" "${DATE_URL}"
-                echo "日期文件已保存"
-              fi
-            done < commit_list.txt
-          else
-            # 如果存在prepare_commits.py，则使用它
-            python prepare_commits.py --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}"
-          fi
+            else
+              echo "数据文件不存在或无法访问: ${DOWNLOAD_URL}"
+              echo "创建空的top-1m.csv"
+              echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
+            fi
+            
+            # 尝试获取date.txt文件
+            if curl -s -f --head "${DATE_URL}" > /dev/null 2>&1; then
+              echo "下载日期文件: ${DATE_URL}"
+              curl -s -o "historical_extracts/${commit_date}/date.txt" "${DATE_URL}"
+              echo "日期文件已保存"
+            fi
+          done < commit_list.txt
+          
+          # 清理临时仓库
+          rm -rf target_repo
           
           # 列出创建的目录和文件
           echo "创建的目录和文件列表:"
