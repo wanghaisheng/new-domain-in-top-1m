@@ -71,45 +71,7 @@ jobs:
       - name: Generate daily new domains files
         run: |
           echo "生成每日新域名文件..."
-          # 创建临时Python脚本
-          cat > generate_new_domains.py << 'EOF'
-import os
-import pandas as pd
-import logging
-from datetime import datetime, timedelta
-
-# 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# 创建新域名目录
-os.makedirs('new_domains', exist_ok=True)
-
-# 加载域名首次出现数据
-logging.info('加载域名首次出现数据...')
-df_first_seen = pd.read_parquet('domains_first_seen.parquet')
-
-# 按日期分组
-logging.info('按日期分组生成每日新域名文件...')
-date_groups = df_first_seen.groupby('first_seen')
-
-# 处理每个日期
-for date, group in date_groups:
-    # 创建日期文件
-    output_file = f'new_domains/{date}.txt'
-    domains = group['domain'].tolist()
-    
-    # 保存到文件
-    with open(output_file, 'w', encoding='utf-8') as f:
-        for domain in sorted(domains):
-            f.write(f'{domain}\n')
-    
-    logging.info(f'生成了 {date} 的新域名文件，包含 {len(domains)} 个域名')
-
-logging.info('每日新域名文件生成完成')
-EOF
-          
-          # 执行脚本
-          python generate_new_domains.py
+          python run_chunked_import.py --generate-new-domains
 
       # 提交结果
       - name: Commit results

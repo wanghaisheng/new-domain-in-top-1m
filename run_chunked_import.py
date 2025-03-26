@@ -206,6 +206,45 @@ def verify_data_files(historical_data_dir='historical_extracts'):
     
     logging.info("数据文件验证完成")
 
+def generate_new_domains():
+    """
+    生成每日新域名文件
+    """
+    import pandas as pd
+    
+    logging.info("开始生成每日新域名文件...")
+    
+    # 创建新域名目录
+    os.makedirs('new_domains', exist_ok=True)
+    
+    # 加载域名首次出现数据
+    try:
+        logging.info('加载域名首次出现数据...')
+        df_first_seen = pd.read_parquet('domains_first_seen.parquet')
+        
+        # 按日期分组
+        logging.info('按日期分组生成每日新域名文件...')
+        date_groups = df_first_seen.groupby('first_seen')
+        
+        # 处理每个日期
+        for date, group in date_groups:
+            # 创建日期文件
+            output_file = f'new_domains/{date}.txt'
+            domains = group['domain'].tolist()
+            
+            # 保存到文件
+            with open(output_file, 'w', encoding='utf-8') as f:
+                for domain in sorted(domains):
+                    f.write(f'{domain}\n')
+            
+            logging.info(f'生成了 {date} 的新域名文件，包含 {len(domains)} 个域名')
+        
+        logging.info('每日新域名文件生成完成')
+        return True
+    except Exception as e:
+        logging.error(f"生成每日新域名文件失败: {e}")
+        return False
+
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='Run chunked import of historical domain data')
@@ -215,6 +254,7 @@ def main():
     parser.add_argument('--retry-failed', action='store_true', help='Retry failed chunks')
     parser.add_argument('--auto-chunks', action='store_true', help='Automatically determine chunk parameters')
     parser.add_argument('--verify-data', action='store_true', help='Verify and fix data files before processing')
+    parser.add_argument('--generate-new-domains', action='store_true', help='Generate daily new domains files')
     
     args = parser.parse_args()
     
@@ -222,9 +262,15 @@ def main():
     start_time = datetime.now()
     logging.info(f"脚本开始执行时间: {start_time}")
     
+    # 如果只需要生成新域名文件
+    if args.generate_new_domains:
+        generate_new_domains()
+        return
+    
     # 验证数据文件
     if args.verify_data:
         verify_data_files()
+        return
     
     # 如果指定了自动确定块参数
     if args.auto_chunks:
