@@ -96,7 +96,9 @@ if __name__ == "__main__":
     
     # 写入文件
     with open('prepare_commits.py', 'w', encoding='utf-8') as f:
-        f.write(script)
+        # 修复换行符问题
+        fixed_script = script.replace('\\n', '\n')
+        f.write(fixed_script)
     
     print("已创建 prepare_commits.py 脚本")
 
@@ -229,9 +231,9 @@ from datetime import datetime
 def main():
     print("开始导入历史数据...")
     
-    # 运行导入脚本
+    # 运行导入脚本，添加批处理大小参数
     try:
-        result = subprocess.run('python import_historical_data.py', shell=True, check=True)
+        result = subprocess.run('python import_historical_data.py --batch-size 5000', shell=True, check=True)
         print("历史数据导入完成")
     except subprocess.CalledProcessError as e:
         print(f"导入历史数据失败: {e}")
