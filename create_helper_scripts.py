@@ -96,7 +96,7 @@ if __name__ == "__main__":
     
     # 写入文件
     with open('prepare_commits.py', 'w', encoding='utf-8') as f:
-        # 修复换行符问题
+        # 修复换行符问题 - 使用正确的转义方式
         fixed_script = script.replace('\\n', '\n')
         f.write(fixed_script)
     
