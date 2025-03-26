@@ -6,6 +6,7 @@ import sys
 import argparse
 import logging
 import subprocess
+import requests
 from datetime import datetime
 
 # 配置日志记录
@@ -39,6 +40,176 @@ def determine_chunk_parameters(historical_data_dir='historical_extracts', chunk_
     # 默认处理所有块
     return 0, total_chunks - 1, total_chunks
 
+def verify_data_files(historical_data_dir='historical_extracts'):
+    """
+    验证数据文件的完整性，尝试修复问题
+    
+    Args:
+        historical_data_dir: 历史数据目录
+    """
+    if not os.path.exists(historical_data_dir):
+        logging.error(f"历史数据目录不存在: {historical_data_dir}")
+        return
+    
+    # 获取所有日期目录
+    date_dirs = [d for d in os.listdir(historical_data_dir) 
+                if os.path.isdir(os.path.join(historical_data_dir, d))]
+    
+    logging.info(f"开始验证 {len(date_dirs)} 个日期目录的数据文件...")
+    
+    for date_dir in date_dirs:
+        full_dir_path = os.path.join(historical_data_dir, date_dir)
+        zip_file = os.path.join(full_dir_path, "tranco.zip")
+        csv_file = os.path.join(full_dir_path, "top-1m.csv")
+        commit_file = os.path.join(full_dir_path, "commit_hash.txt")
+        
+        # 读取提交哈希
+        commit_hash = None
+        if os.path.exists(commit_file):
+            try:
+                with open(commit_file, 'r') as f:
+                    commit_hash = f.read().strip()
+            except Exception as e:
+                logging.error(f"读取提交哈希文件失败 {date_dir}: {e}")
+        
+        if commit_hash:
+            logging.info(f"验证目录 {date_dir} (提交: {commit_hash})")
+            
+            # 检查CSV文件是否存在且有效
+            if os.path.exists(csv_file) and os.path.getsize(csv_file) > 0:
+                # 检查CSV文件内容
+                try:
+                    with open(csv_file, 'r', encoding='utf-8') as f:
+                        first_line = f.readline().strip()
+                        if ',' in first_line and ('rank' in first_line.lower() or first_line[0].isdigit()):
+                            logging.info(f"CSV文件有效: {csv_file}")
+                            continue
+                        else:
+                            logging.warning(f"CSV文件格式可能不正确: {csv_file}, 第一行: {first_line}")
+                except Exception as e:
+                    logging.error(f"读取CSV文件失败 {csv_file}: {e}")
+            
+            # 如果CSV文件不存在或无效，尝试从ZIP文件恢复
+            if os.path.exists(zip_file) and os.path.getsize(zip_file) > 0:
+                logging.info(f"尝试从ZIP文件恢复: {zip_file}")
+                try:
+                    # 检查文件类型
+                    import magic
+                    file_type = magic.from_file(zip_file)
+                    logging.info(f"文件类型: {file_type}")
+                    
+                    if "Zip archive" in file_type:
+                        # 解压ZIP文件
+                        import zipfile
+                        with zipfile.ZipFile(zip_file, 'r') as z:
+                            csv_files = [f for f in z.namelist() if f.endswith('.csv')]
+                            if csv_files:
+                                with z.open(csv_files[0]) as zf, open(csv_file, 'wb') as f:
+                                    f.write(zf.read())
+                                logging.info(f"从ZIP文件恢复了CSV: {csv_files[0]} -> {csv_file}")
+                                continue
+                    else:
+                        # 可能是CSV文件但扩展名错误
+                        with open(zip_file, 'r', encoding='utf-8', errors='ignore') as f:
+                            first_line = f.readline().strip()
+                            if ',' in first_line and ('rank' in first_line.lower() or first_line[0].isdigit()):
+                                # 复制为CSV文件
+                                import shutil
+                                shutil.copy2(zip_file, csv_file)
+                                logging.info(f"将文本文件复制为CSV: {zip_file} -> {csv_file}")
+                                continue
+                except ImportError:
+                    logging.warning("未安装python-magic库，无法检测文件类型")
+                except Exception as e:
+                    logging.error(f"从ZIP文件恢复失败 {zip_file}: {e}")
+            
+            # 如果本地文件都无效，尝试从GitHub重新下载
+            if commit_hash:
+                logging.info(f"尝试从GitHub重新下载数据 (提交: {commit_hash})")
+                
+                # 只保留有效的URL
+                possible_urls = [
+                    f"https://github.com/adysec/top_1m_domains/raw/{commit_hash}/tranco.zip"
+                ]
+                
+                download_success = False
+                
+                # 首先尝试使用requests下载
+                for url in possible_urls:
+                    try:
+                        logging.info(f"使用requests尝试URL: {url}")
+                        response = requests.head(url, timeout=10)  # 添加超时设置
+                        if response.status_code == 200:
+                            logging.info(f"找到可用URL: {url}")
+                            
+                            # 下载文件
+                            response = requests.get(url, timeout=30)  # 增加下载超时时间
+                            if response.status_code == 200:
+                                # 保存为ZIP文件
+                                with open(zip_file, 'wb') as f:
+                                    f.write(response.content)
+                                
+                                logging.info(f"成功下载并保存为ZIP: {zip_file}")
+                                download_success = True
+                                break
+                    except requests.exceptions.RequestException as e:
+                        logging.error(f"requests下载失败 {url}: {e}")
+                
+                # 如果requests下载失败，尝试使用wget
+                if not download_success:
+                    for url in possible_urls:
+                        try:
+                            logging.info(f"使用wget尝试URL: {url}")
+                            import subprocess
+                            
+                            # 使用wget下载文件
+                            wget_cmd = ["wget", "-q", "--tries=3", "--timeout=30", "-O", zip_file, url]
+                            logging.info(f"执行命令: {' '.join(wget_cmd)}")
+                            
+                            result = subprocess.run(wget_cmd, capture_output=True, text=True)
+                            
+                            # 检查wget是否成功
+                            if result.returncode == 0 and os.path.exists(zip_file) and os.path.getsize(zip_file) > 0:
+                                logging.info(f"wget成功下载文件: {zip_file}")
+                                download_success = True
+                                break
+                            else:
+                                logging.error(f"wget下载失败: {result.stderr}")
+                        except Exception as e:
+                            logging.error(f"执行wget命令失败: {e}")
+                
+                # 如果下载成功，尝试处理文件
+                if download_success:
+                    # 尝试解压ZIP文件
+                    try:
+                        import zipfile
+                        with zipfile.ZipFile(zip_file, 'r') as z:
+                            csv_files = [f for f in z.namelist() if f.endswith('.csv')]
+                            if csv_files:
+                                with z.open(csv_files[0]) as zf, open(csv_file, 'wb') as f:
+                                    f.write(zf.read())
+                                logging.info(f"从下载的ZIP文件解压了CSV: {csv_files[0]} -> {csv_file}")
+                    except Exception as e:
+                        logging.error(f"解压下载的ZIP文件失败: {e}")
+                        # 如果解压失败，可能是直接的CSV文件
+                        try:
+                            with open(zip_file, 'r', encoding='utf-8', errors='ignore') as f:
+                                first_line = f.readline().strip()
+                                if ',' in first_line:
+                                    import shutil
+                                    shutil.copy2(zip_file, csv_file)
+                                    logging.info(f"将下载的文件复制为CSV: {zip_file} -> {csv_file}")
+                        except Exception as e2:
+                            logging.error(f"尝试将下载文件作为CSV处理失败: {e2}")
+                        
+                                break
+                    except requests.exceptions.RequestException as e:
+                        logging.error(f"下载失败 {url}: {e}")
+        else:
+            logging.warning(f"目录 {date_dir} 没有提交哈希文件")
+    
+    logging.info("数据文件验证完成")
+
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='Run chunked import of historical domain data')
@@ -47,12 +218,17 @@ def main():
     parser.add_argument('--batch-size', type=int, default=5000, help='Batch size for processing')
     parser.add_argument('--retry-failed', action='store_true', help='Retry failed chunks')
     parser.add_argument('--auto-chunks', action='store_true', help='Automatically determine chunk parameters')
+    parser.add_argument('--verify-data', action='store_true', help='Verify and fix data files before processing')
     
     args = parser.parse_args()
     
     # 记录脚本开始执行时间
     start_time = datetime.now()
     logging.info(f"脚本开始执行时间: {start_time}")
+    
+    # 验证数据文件
+    if args.verify_data:
+        verify_data_files()
     
     # 如果指定了自动确定块参数
     if args.auto_chunks:
