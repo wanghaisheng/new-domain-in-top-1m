@@ -9,7 +9,7 @@ on:
 
 jobs:
   test_import_tools:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout repository
@@ -27,68 +27,66 @@ jobs:
       
       - name: Run test workflow
         run: |
-          # Create and run the test batch file
-          echo @echo off > test_workflow.bat
-          echo REM Test workflow for historical data import tools using relative paths >> test_workflow.bat
-          echo. >> test_workflow.bat
-          echo echo === Testing Historical Data Import Tools === >> test_workflow.bat
-          echo echo. >> test_workflow.bat
-          echo. >> test_workflow.bat
-          echo REM Step 1: Generate helper scripts >> test_workflow.bat
-          echo echo Step 1: Generating helper scripts... >> test_workflow.bat
-          echo python create_helper_scripts.py >> test_workflow.bat
-          echo echo. >> test_workflow.bat
-          echo. >> test_workflow.bat
-          echo REM Step 2: Prepare a small list of commits for testing >> test_workflow.bat
-          echo echo Step 2: Preparing commit list with a small date range... >> test_workflow.bat
-          echo python prepare_commits.py --start-date 2024-06-08 --end-date 2024-06-10 >> test_workflow.bat
-          echo echo. >> test_workflow.bat
-          echo. >> test_workflow.bat
-          echo REM Step 3: Process a limited number of commits >> test_workflow.bat
-          echo echo Step 3: Processing a limited number of commits... >> test_workflow.bat
-          echo python process_commits.py --max-commits 3 >> test_workflow.bat
-          echo echo. >> test_workflow.bat
-          echo. >> test_workflow.bat
-          echo REM Step 4: Import the processed data >> test_workflow.bat
-          echo echo Step 4: Importing processed data... >> test_workflow.bat
-          echo python import_data.py >> test_workflow.bat
-          echo echo. >> test_workflow.bat
-          echo. >> test_workflow.bat
-          echo REM Step 5: Verify results >> test_workflow.bat
-          echo echo Step 5: Verifying results... >> test_workflow.bat
-          echo echo Checking for output files: >> test_workflow.bat
-          echo. >> test_workflow.bat
+          # Create test script
+          cat > test_workflow.sh << 'EOF'
+          #!/bin/bash
           
-          echo "echo if exist domains_rankings.parquet (" >> test_workflow.bat
-          echo "    echo - domains_rankings.parquet: FOUND" >> test_workflow.bat
-          echo ") else (" >> test_workflow.bat
-          echo "    echo - domains_rankings.parquet: NOT FOUND" >> test_workflow.bat
-          echo ")" >> test_workflow.bat
+          echo "=== Testing Historical Data Import Tools ==="
+          echo ""
           
-          echo. >> test_workflow.bat
+          # Step 1: Generate helper scripts
+          echo "Step 1: Generating helper scripts..."
+          python create_helper_scripts.py
+          echo ""
           
-          echo "echo if exist domains_first_seen.parquet (" >> test_workflow.bat
-          echo "    echo - domains_first_seen.parquet: FOUND" >> test_workflow.bat
-          echo ") else (" >> test_workflow.bat
-          echo "    echo - domains_first_seen.parquet: NOT FOUND" >> test_workflow.bat
-          echo ")" >> test_workflow.bat
+          # Step 2: Prepare a small list of commits for testing
+          echo "Step 2: Preparing commit list with a small date range..."
+          python prepare_commits.py --start-date 2024-06-08 --end-date 2024-06-10
+          echo ""
           
-          echo. >> test_workflow.bat
+          # Step 3: Process a limited number of commits
+          echo "Step 3: Processing a limited number of commits..."
+          python process_commits.py --max-commits 3
+          echo ""
           
-          echo "echo if exist last_processed_date.txt (" >> test_workflow.bat
-          echo "    echo - last_processed_date.txt: FOUND" >> test_workflow.bat
-          echo "    echo   Last processed date: " >> test_workflow.bat
-          echo "    type last_processed_date.txt" >> test_workflow.bat
-          echo ") else (" >> test_workflow.bat
-          echo "    echo - last_processed_date.txt: NOT FOUND" >> test_workflow.bat
-          echo ")" >> test_workflow.bat
+          # Step 4: Import the processed data
+          echo "Step 4: Importing processed data..."
+          python import_data.py
+          echo ""
           
-          echo. >> test_workflow.bat
-          echo echo. >> test_workflow.bat
-          echo echo === Test Complete === >> test_workflow.bat
+          # Step 5: Verify results
+          echo "Step 5: Verifying results..."
+          echo "Checking for output files:"
           
-          # Run the test batch file
-          .\test_workflow.bat
+          if [ -f "domains_rankings.parquet" ]; then
+              echo "- domains_rankings.parquet: FOUND"
+          else
+              echo "- domains_rankings.parquet: NOT FOUND"
+          fi
+          
+          if [ -f "domains_first_seen.parquet" ]; then
+              echo "- domains_first_seen.parquet: FOUND"
+          else
+              echo "- domains_first_seen.parquet: NOT FOUND"
+          fi
+          
+          if [ -f "last_processed_date.txt" ]; then
+              echo "- last_processed_date.txt: FOUND"
+              echo "  Last processed date:"
+              cat "last_processed_date.txt"
+          else
+              echo "- last_processed_date.txt: NOT FOUND"
+          fi
+          
+          echo ""
+          echo "=== Test Complete ==="
+          EOF
+          
+          # Make script executable
+          chmod +x test_workflow.sh
+          
+          # Run the test script
+          ./test_workflow.sh
       
       - name: Push artifacts
         uses: ad-m/github-push-action@master
