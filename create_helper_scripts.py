@@ -5,104 +5,102 @@ import os
 
 def create_prepare_commits_script():
     """创建准备提交列表的脚本"""
-    # 使用不同的写入方式，避免转义序列问题
-    script = """#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-import os
-import sys
-import json
-import argparse
-import requests
-from datetime import datetime
-import time
-
-def main():
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='准备提交列表')
-    parser.add_argument('--start-date', type=str, required=False, default='2024-06-08',
-                        help='开始日期 (YYYY-MM-DD)')
-    parser.add_argument('--end-date', type=str, required=False, default='',
-                        help='结束日期 (YYYY-MM-DD)')
-    args = parser.parse_args()
+    # 使用列表存储脚本内容，避免转义序列问题
+    script_lines = [
+        "#!/usr/bin/env python3",
+        "# -*- coding: utf-8 -*-",
+        "",
+        "import os",
+        "import sys",
+        "import json",
+        "import argparse",
+        "import requests",
+        "from datetime import datetime",
+        "import time",
+        "",
+        "def main():",
+        "    # 解析命令行参数",
+        "    parser = argparse.ArgumentParser(description='准备提交列表')",
+        "    parser.add_argument('--start-date', type=str, required=False, default='2024-06-08',",
+        "                        help='开始日期 (YYYY-MM-DD)')",
+        "    parser.add_argument('--end-date', type=str, required=False, default='',",
+        "                        help='结束日期 (YYYY-MM-DD)')",
+        "    args = parser.parse_args()",
+        "    ",
+        "    # 设置日期范围",
+        "    start_date = args.start_date",
+        "    end_date = args.end_date if args.end_date else datetime.now().strftime('%Y-%m-%d')",
+        "    ",
+        "    print(f\"获取 {start_date} 到 {end_date} 之间的提交\")",
+        "    ",
+        "    # 创建历史数据目录",
+        "    os.makedirs('historical_extracts', exist_ok=True)",
+        "    ",
+        "    # 使用GitHub API获取提交列表",
+        "    repo = \"adysec/top_1m_domains\"",
+        "    page = 1",
+        "    per_page = 100",
+        "    all_commits = []",
+        "    ",
+        "    while True:",
+        "        url = f\"https://api.github.com/repos/{repo}/commits?per_page={per_page}&page={page}\"",
+        "        response = requests.get(url)",
+        "        ",
+        "        if response.status_code != 200:",
+        "            print(f\"API请求失败: {response.status_code}\")",
+        "            print(response.text)",
+        "            sys.exit(1)",
+        "        ",
+        "        commits = response.json()",
+        "        ",
+        "        # 检查是否为空数组",
+        "        if not commits:",
+        "            break",
+        "        ",
+        "        # 提取提交信息",
+        "        for commit in commits:",
+        "            sha = commit['sha']",
+        "            date = commit['commit']['committer']['date'][:10]  # 只取日期部分",
+        "            all_commits.append((sha, date))",
+        "        ",
+        "        page += 1",
+        "        ",
+        "        # 避免API限制",
+        "        time.sleep(1)",
+        "    ",
+        "    # 过滤日期范围内的提交并排序",
+        "    filtered_commits = []",
+        "    for sha, date in all_commits:",
+        "        if start_date <= date <= end_date:",
+        "            filtered_commits.append((sha, date))",
+        "    ",
+        "    # 按日期排序（从早到晚）",
+        "    filtered_commits.sort(key=lambda x: x[1])",
+        "    ",
+        "    # 写入文件",
+        "    with open('historical_commits.txt', 'w') as f:",
+        "        for sha, date in filtered_commits:",
+        "            f.write(f\"{sha} {date}\\n\")",
+        "    ",
+        "    # 检查提交记录数量",
+        "    commit_count = len(filtered_commits)",
+        "    print(f\"找到 {commit_count} 条提交记录\")",
+        "    ",
+        "    if commit_count < 1:",
+        "        print(\"错误：没有找到指定日期范围内的提交记录\")",
+        "        sys.exit(1)",
+        "    ",
+        "    print(\"提交列表准备完成\")",
+        "",
+        "if __name__ == \"__main__\":",
+        "    main()"
+    ]
     
-    # 设置日期范围
-    start_date = args.start_date
-    end_date = args.end_date if args.end_date else datetime.now().strftime('%Y-%m-%d')
-    
-    print(f"获取 {start_date} 到 {end_date} 之间的提交")
-    
-    # 创建历史数据目录
-    os.makedirs('historical_extracts', exist_ok=True)
-    
-    # 使用GitHub API获取提交列表
-    repo = "adysec/top_1m_domains"
-    page = 1
-    per_page = 100
-    all_commits = []
-    
-    while True:
-        url = f"https://api.github.com/repos/{repo}/commits?per_page={per_page}&page={page}"
-        response = requests.get(url)
-        
-        if response.status_code != 200:
-            print(f"API请求失败: {response.status_code}")
-            print(response.text)
-            sys.exit(1)
-        
-        commits = response.json()
-        
-        # 检查是否为空数组
-        if not commits:
-            break
-        
-        # 提取提交信息
-        for commit in commits:
-            sha = commit['sha']
-            date = commit['commit']['committer']['date'][:10]  # 只取日期部分
-            all_commits.append((sha, date))
-        
-        page += 1
-        
-        # 避免API限制
-        time.sleep(1)
-    
-    # 过滤日期范围内的提交并排序
-    filtered_commits = []
-    for sha, date in all_commits:
-        if start_date <= date <= end_date:
-            filtered_commits.append((sha, date))
-    
-    # 按日期排序（从早到晚）
-    filtered_commits.sort(key=lambda x: x[1])
-    
-    # 写入文件 - 使用不同的写入方式
-    with open('historical_commits.txt', 'w') as f:
-        for sha, date in filtered_commits:
-            f.write(sha)
-            f.write(' ')
-            f.write(date)
-            f.write('\\n')
-    
-    # 检查提交记录数量
-    commit_count = len(filtered_commits)
-    print(f"找到 {commit_count} 条提交记录")
-    
-    if commit_count < 1:
-        print("错误：没有找到指定日期范围内的提交记录")
-        sys.exit(1)
-    
-    print("提交列表准备完成")
-
-if __name__ == "__main__":
-    main()
-"""
-    
-    # 写入文件
+    # 写入文件 - 使用完全不同的方法
     with open('prepare_commits.py', 'w', encoding='utf-8') as f:
-        # 直接替换换行符
-        fixed_script = script.replace('\\n', '\n')
-        f.write(fixed_script)
+        # 将列表中的每一行写入文件，并在每行后添加换行符
+        for line in script_lines:
+            f.write(line + '\n')
     
     print("已创建 prepare_commits.py 脚本")
 
