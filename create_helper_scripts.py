@@ -78,7 +78,8 @@ def main():
     # 写入文件
     with open('historical_commits.txt', 'w') as f:
         for sha, date in filtered_commits:
-            f.write(sha + " " + date + "\\n")
+            line = sha + " " + date + "\\n"
+            f.write(line)
     
     # 检查提交记录数量
     commit_count = len(filtered_commits)
