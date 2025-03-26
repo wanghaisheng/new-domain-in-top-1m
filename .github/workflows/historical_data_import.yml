@@ -69,9 +69,15 @@ jobs:
           COMMIT_COUNT=$(wc -l < commit_list.txt)
           echo "找到 ${COMMIT_COUNT} 个提交"
           
+          # 打印提交列表以便调试
+          echo "提交列表内容:"
+          cat commit_list.txt
+          
           # 为每个提交创建目录并下载数据
           while read -r commit_hash commit_date; do
+            echo "=============================================="
             echo "处理提交: ${commit_hash} (${commit_date})"
+            echo "完整提交哈希: ${commit_hash}"
             
             # 创建目录
             mkdir -p "historical_extracts/${commit_date}"
@@ -81,12 +87,22 @@ jobs:
             DOWNLOAD_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco.zip"
             DATE_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/date.txt"
             
-            echo "尝试下载: ${DOWNLOAD_URL}"
+            echo "构造的下载URL: ${DOWNLOAD_URL}"
+            echo "构造的日期URL: ${DATE_URL}"
+            
+            # 尝试获取URL头信息
+            echo "检查URL可访问性:"
+            curl -s -I "${DOWNLOAD_URL}" | head -n 1
             
             # 先检查是否可以访问
             if curl -s -f --head "${DOWNLOAD_URL}" > /dev/null 2>&1; then
               echo "下载数据文件: ${DOWNLOAD_URL}"
               curl -s -o "historical_extracts/${commit_date}/tranco.zip" "${DOWNLOAD_URL}"
+              
+              # 检查下载文件信息
+              echo "下载的文件信息:"
+              ls -la "historical_extracts/${commit_date}/tranco.zip"
+              file "historical_extracts/${commit_date}/tranco.zip"
               
               # 检查下载是否成功
               if [ -f "historical_extracts/${commit_date}/tranco.zip" ] && [ -s "historical_extracts/${commit_date}/tranco.zip" ]; then
