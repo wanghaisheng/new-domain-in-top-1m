@@ -66,48 +66,58 @@ jobs:
             while read -r commit_hash commit_date; do
               echo "处理提交: ${commit_hash} (${commit_date})"
               
-              # 先尝试获取date.txt文件内容来确定实际日期
-              DATE_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/date.txt"
-              echo "尝试获取日期文件: ${DATE_URL}"
-              
-              ACTUAL_DATE=""
-              if curl -s --head "${DATE_URL}" | head -n 1 | grep "200" > /dev/null; then
-                ACTUAL_DATE=$(curl -s "${DATE_URL}")
-                # 格式化日期为YYYY-MM-DD
-                if [[ ${#ACTUAL_DATE} -eq 8 ]]; then
-                  FORMATTED_DATE="${ACTUAL_DATE:0:4}-${ACTUAL_DATE:4:2}-${ACTUAL_DATE:6:2}"
-                  echo "从date.txt获取到的日期: ${ACTUAL_DATE}, 格式化为: ${FORMATTED_DATE}"
-                  ACTUAL_DATE="${FORMATTED_DATE}"
-                else
-                  echo "date.txt内容格式不正确: ${ACTUAL_DATE}，使用提交日期"
-                  ACTUAL_DATE="${commit_date}"
-                fi
-              else
-                echo "date.txt文件不存在，使用提交日期"
-                ACTUAL_DATE="${commit_date}"
-              fi
-              
               # 创建目录
-              mkdir -p "historical_extracts/${ACTUAL_DATE}"
-              echo "${commit_hash}" > "historical_extracts/${ACTUAL_DATE}/commit_hash.txt"
+              mkdir -p "historical_extracts/${commit_date}"
+              echo "${commit_hash}" > "historical_extracts/${commit_date}/commit_hash.txt"
               
-              # 尝试从GitHub下载对应提交的tranco.zip文件
+              # 使用完整的提交哈希构建URL
               DOWNLOAD_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/tranco.zip"
+              DATE_URL="https://github.com/adysec/top_1m_domains/raw/${commit_hash}/date.txt"
+              
               echo "尝试下载: ${DOWNLOAD_URL}"
               
-              if curl -s --head "${DOWNLOAD_URL}" | head -n 1 | grep "200" > /dev/null; then
+              # 先检查是否可以访问
+              if curl -s -f --head "${DOWNLOAD_URL}" > /dev/null 2>&1; then
                 echo "下载数据文件: ${DOWNLOAD_URL}"
-                curl -s -o "historical_extracts/${ACTUAL_DATE}/tranco.zip" "${DOWNLOAD_URL}"
-                echo "数据文件已保存到: historical_extracts/${ACTUAL_DATE}/tranco.zip"
+                curl -s -o "historical_extracts/${commit_date}/tranco.zip" "${DOWNLOAD_URL}"
                 
-                # 解压zip文件
-                echo "解压数据文件..."
-                unzip -q -o "historical_extracts/${ACTUAL_DATE}/tranco.zip" -d "historical_extracts/${ACTUAL_DATE}/"
-                echo "数据文件已解压"
+                # 检查下载是否成功
+                if [ -f "historical_extracts/${commit_date}/tranco.zip" ] && [ -s "historical_extracts/${commit_date}/tranco.zip" ]; then
+                  echo "数据文件已保存到: historical_extracts/${commit_date}/tranco.zip"
+                  
+                  # 解压zip文件
+                  echo "解压数据文件..."
+                  unzip -q -o "historical_extracts/${commit_date}/tranco.zip" -d "historical_extracts/${commit_date}/"
+                  
+                  # 检查解压后是否有CSV文件
+                  if [ -f "historical_extracts/${commit_date}/top-1m.csv" ]; then
+                    echo "找到top-1m.csv文件"
+                  else
+                    # 查找任何CSV文件并重命名为top-1m.csv
+                    CSV_FILE=$(find "historical_extracts/${commit_date}/" -name "*.csv" | head -n 1)
+                    if [ ! -z "${CSV_FILE}" ]; then
+                      echo "找到CSV文件: ${CSV_FILE}，重命名为top-1m.csv"
+                      cp "${CSV_FILE}" "historical_extracts/${commit_date}/top-1m.csv"
+                    else
+                      echo "未找到CSV文件，创建空的top-1m.csv"
+                      echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
+                    fi
+                  fi
+                else
+                  echo "下载失败，创建空的top-1m.csv"
+                  echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
+                fi
               else
-                echo "数据文件不存在: ${DOWNLOAD_URL}"
-                # 创建一个空的CSV文件，避免处理时报错
-                echo "rank,domain" > "historical_extracts/${ACTUAL_DATE}/top-1m.csv"
+                echo "数据文件不存在或无法访问: ${DOWNLOAD_URL}"
+                echo "创建空的top-1m.csv"
+                echo "rank,domain" > "historical_extracts/${commit_date}/top-1m.csv"
+              fi
+              
+              # 尝试获取date.txt文件
+              if curl -s -f --head "${DATE_URL}" > /dev/null 2>&1; then
+                echo "下载日期文件: ${DATE_URL}"
+                curl -s -o "historical_extracts/${commit_date}/date.txt" "${DATE_URL}"
+                echo "日期文件已保存"
               fi
             done < commit_list.txt
           else
