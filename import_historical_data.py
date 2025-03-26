@@ -98,7 +98,39 @@ def save_domains_history(domains_rankings, domains_first_seen):
     except Exception as e:
         logging.error(f"Error saving domains ranking history: {e}")
 
-def import_historical_data():
+def determine_chunk_parameters(date_dirs, requested_start_chunk=0, requested_end_chunk=0, chunk_size=10):
+    """
+    Automatically determine the optimal chunk start and end based on available data
+    
+    Args:
+        date_dirs: List of date directories to process
+        requested_start_chunk: User requested start chunk (default 0)
+        requested_end_chunk: User requested end chunk (default 0)
+        chunk_size: Number of dates to process in each chunk (default 10)
+        
+    Returns:
+        tuple: (start_chunk, end_chunk, total_chunks)
+    """
+    total_dirs = len(date_dirs)
+    total_chunks = (total_dirs + chunk_size - 1) // chunk_size  # Ceiling division
+    
+    logging.info(f"Found {total_dirs} date directories, which can be processed in {total_chunks} chunks")
+    
+    # Validate requested chunks
+    if requested_start_chunk < 0:
+        requested_start_chunk = 0
+    
+    if requested_end_chunk <= 0 or requested_end_chunk >= total_chunks:
+        requested_end_chunk = total_chunks - 1
+    
+    if requested_start_chunk > requested_end_chunk:
+        requested_start_chunk = requested_end_chunk
+    
+    logging.info(f"Will process chunks {requested_start_chunk} to {requested_end_chunk} (out of {total_chunks} total chunks)")
+    
+    return requested_start_chunk, requested_end_chunk, total_chunks
+
+def import_historical_data(start_chunk=0, end_chunk=0, chunk_size=10):
     """导入历史数据"""
     # 加载现有数据
     domains_rankings, domains_first_seen = load_domains_history()
@@ -121,11 +153,29 @@ def import_historical_data():
         logging.warning("可能原因：1. Git仓库克隆深度不够 2. 提交记录过滤条件有问题 3. 部分日期没有提交记录")
         logging.warning("建议在workflow中增加git clone深度，并检查git log过滤条件")
     
+    # 自动确定块参数
+    start_chunk, end_chunk, total_chunks = determine_chunk_parameters(
+        date_dirs, 
+        requested_start_chunk=start_chunk,
+        requested_end_chunk=end_chunk,
+        chunk_size=chunk_size
+    )
+    
+    # 计算要处理的日期目录范围
+    start_idx = start_chunk * chunk_size
+    end_idx = min((end_chunk + 1) * chunk_size, len(date_dirs))
+    
+    # 只处理指定范围内的日期目录
+    dirs_to_process = date_dirs[start_idx:end_idx]
+    logging.info(f"Processing {len(dirs_to_process)} directories from chunk {start_chunk} to {end_chunk}")
+    
     # 逐个处理每个日期目录，每处理一个就更新一次数据库
-    for date_dir in date_dirs:
+    for i, date_dir in enumerate(dirs_to_process):
         date = date_dir  # 目录名就是日期
         zip_file = os.path.join(HISTORICAL_DATA_DIR, date_dir, "tranco.zip")
         csv_file = os.path.join(HISTORICAL_DATA_DIR, date_dir, "top-1m.csv")
+        
+        logging.info(f"Processing directory {i+1}/{len(dirs_to_process)}: {date_dir}")
         
         # 检查是否存在zip文件或csv文件
         if os.path.exists(zip_file):
@@ -151,16 +201,18 @@ def import_historical_data():
             logging.warning(f"No data file found for date: {date}")
         
         # 每处理10个日期，保存一次数据并更新数据库
-        if int(date_dirs.index(date_dir) + 1) % 10 == 0 or date_dir == date_dirs[-1]:
+        if (i + 1) % 10 == 0 or i == len(dirs_to_process) - 1:
             # 保存更新后的数据
             save_domains_history(domains_rankings, domains_first_seen)
             
             # 更新数据库
             update_database(domains_rankings, domains_first_seen)
             
-            logging.info(f"Saved data and updated database after processing {date_dir} ({date_dirs.index(date_dir) + 1}/{len(date_dirs)})")
+            logging.info(f"Saved data and updated database after processing {date_dir} ({i+1}/{len(dirs_to_process)})")
     
-    logging.info("Historical data import completed")
+    logging.info(f"Historical data import completed for chunks {start_chunk} to {end_chunk}")
+    return True
+
 def process_single_commit(commit_hash, commit_date):
     """处理单个提交"""
     start_time = datetime.now()

@@ -11,18 +11,10 @@ on:
         description: '结束日期 (YYYY-MM-DD)'
         required: false
         default: '2025-03-25'
-      start_chunk:
-        description: '开始处理的块ID'
-        required: false
-        default: '0'
-      end_chunk:
-        description: '结束处理的块ID'
-        required: false
-        default: '0'
       batch_size:
         description: '每批处理的域名数量'
         required: false
-        default: '5000'
+        default: '500000'
       retry_failed:
         description: '重试失败的块 (true/false)'
         required: false
@@ -204,9 +196,6 @@ jobs:
             fi
           done < commit_list.txt
           
-          # 清理临时仓库
-          rm -rf target_repo
-          
           # 列出创建的目录和文件
           echo "创建的目录和文件列表:"
           find historical_extracts -type f | sort
@@ -214,33 +203,15 @@ jobs:
       # 运行分块导入
       - name: Run chunked import
         run: |
-          # 先检查数据块数量
-          echo "检查数据块数量..."
-          TOTAL_CHUNKS=$(python -c "
-          import os
-          commit_dirs = [d for d in os.listdir('historical_extracts') if os.path.isdir(os.path.join('historical_extracts', d))]
-          chunk_size = 30
-          total_chunks = (len(commit_dirs) + chunk_size - 1) // chunk_size
-          print(total_chunks)
-          ")
-          echo "总数据块数量: ${TOTAL_CHUNKS}"
-          
-          # 设置结束块ID
-          END_CHUNK="${{ github.event.inputs.end_chunk }}"
-          if [ -z "${END_CHUNK}" ] || [ "${END_CHUNK}" = "" ]; then
-            END_CHUNK=$((TOTAL_CHUNKS - 1))
-            echo "设置结束块ID为: ${END_CHUNK}"
-          fi
-          
           # 设置重试标志
           RETRY_FLAG=""
           if [ "${{ github.event.inputs.retry_failed }}" = "true" ]; then
             RETRY_FLAG="--retry-failed"
           fi
           
-          # 运行导入脚本
+          # 运行导入脚本 - 让脚本自动确定块参数
           echo "运行导入脚本..."
-          python run_chunked_import.py --start-chunk ${{ github.event.inputs.start_chunk }} --end-chunk ${END_CHUNK} --batch-size ${{ github.event.inputs.batch_size }} ${RETRY_FLAG}
+          python run_chunked_import.py --auto-chunks --batch-size ${{ github.event.inputs.batch_size }} ${RETRY_FLAG}
           
           # 生成每日新域名文件
           echo "生成每日新域名文件..."
@@ -278,7 +249,6 @@ jobs:
                   print(f'处理 {date_str} 时出错: {str(e)}')
           
           print('每日新域名文件生成完成')
-          "
 
       # 提交结果
       - name: Commit results
