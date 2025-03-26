@@ -5,6 +5,7 @@ import os
 
 def create_prepare_commits_script():
     """创建准备提交列表的脚本"""
+    # 使用不同的写入方式，避免转义序列问题
     script = """#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -75,10 +76,13 @@ def main():
     # 按日期排序（从早到晚）
     filtered_commits.sort(key=lambda x: x[1])
     
-    # 写入文件
+    # 写入文件 - 使用不同的写入方式
     with open('historical_commits.txt', 'w') as f:
         for sha, date in filtered_commits:
-            f.write(sha + " " + date + "\\n")
+            f.write(sha)
+            f.write(' ')
+            f.write(date)
+            f.write('\\n')
     
     # 检查提交记录数量
     commit_count = len(filtered_commits)
@@ -96,12 +100,8 @@ if __name__ == "__main__":
     
     # 写入文件
     with open('prepare_commits.py', 'w', encoding='utf-8') as f:
-        # 修复换行符问题 - 使用正则表达式替换
-        import re
-        # 先替换 line = sha + " " + date + "\\n" 中的 \\n
-        fixed_script = script.replace('line = sha + " " + date + "\\n"', 'line = sha + " " + date + "\\n"')
-        # 然后替换所有的 \\n 为 \n
-        fixed_script = fixed_script.replace('\\n', '\n')
+        # 直接替换换行符
+        fixed_script = script.replace('\\n', '\n')
         f.write(fixed_script)
     
     print("已创建 prepare_commits.py 脚本")
