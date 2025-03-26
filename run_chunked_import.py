@@ -209,6 +209,7 @@ def verify_data_files(historical_data_dir='historical_extracts'):
 def generate_new_domains():
     """
     生成每日新域名文件
+git    从commit ID中提取的date.txt文件中获取日期信息
     """
     import pandas as pd
     
@@ -222,9 +223,41 @@ def generate_new_domains():
         logging.info('加载域名首次出现数据...')
         df_first_seen = pd.read_parquet('domains_first_seen.parquet')
         
+        # 创建日期映射字典
+        date_mapping = {}
+        historical_data_dir = 'historical_extracts'
+        
+        # 获取所有日期目录
+        if os.path.exists(historical_data_dir):
+            date_dirs = [d for d in os.listdir(historical_data_dir) 
+                        if os.path.isdir(os.path.join(historical_data_dir, d))]
+            
+            # 从每个目录的date.txt文件中读取日期
+            for date_dir in date_dirs:
+                date_file = os.path.join(historical_data_dir, date_dir, "date.txt")
+                if os.path.exists(date_file):
+                    try:
+                        with open(date_file, 'r') as f:
+                            actual_date = f.read().strip()
+                            date_mapping[date_dir] = actual_date
+                            logging.info(f"目录 {date_dir} 对应日期: {actual_date}")
+                    except Exception as e:
+                        logging.error(f"读取日期文件失败 {date_file}: {e}")
+                        # 如果无法读取日期文件，使用目录名作为日期
+                        date_mapping[date_dir] = date_dir
+        
         # 按日期分组
         logging.info('按日期分组生成每日新域名文件...')
-        date_groups = df_first_seen.groupby('first_seen')
+        
+        # 如果first_seen列是目录名，则需要映射到实际日期
+        if df_first_seen['first_seen'].iloc[0] in date_mapping:
+            logging.info('将目录名映射到实际日期...')
+            df_first_seen['actual_date'] = df_first_seen['first_seen'].map(
+                lambda x: date_mapping.get(x, x))
+            date_groups = df_first_seen.groupby('actual_date')
+        else:
+            # 否则直接使用first_seen列
+            date_groups = df_first_seen.groupby('first_seen')
         
         # 处理每个日期
         for date, group in date_groups:
