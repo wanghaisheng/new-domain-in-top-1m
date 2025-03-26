@@ -71,8 +71,8 @@ jobs:
       - name: Generate daily new domains files
         run: |
           echo "生成每日新域名文件..."
-          # 使用import_historical_data.py脚本的功能生成新域名文件
-          python -c "
+          # 创建临时Python脚本
+          cat > generate_new_domains.py << 'EOF'
 import os
 import pandas as pd
 import logging
@@ -101,12 +101,15 @@ for date, group in date_groups:
     # 保存到文件
     with open(output_file, 'w', encoding='utf-8') as f:
         for domain in sorted(domains):
-            f.write(f'{domain}\\n')
+            f.write(f'{domain}\n')
     
     logging.info(f'生成了 {date} 的新域名文件，包含 {len(domains)} 个域名')
 
 logging.info('每日新域名文件生成完成')
-          "
+EOF
+          
+          # 执行脚本
+          python generate_new_domains.py
 
       # 提交结果
       - name: Commit results
