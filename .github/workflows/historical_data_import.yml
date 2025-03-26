@@ -71,7 +71,14 @@ jobs:
       - name: Generate daily new domains files
         run: |
           echo "生成每日新域名文件..."
-          python run_chunked_import.py --generate-new-domains
+          python run_chunked_import.py --generate-new-domains --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}" 2>&1 | tee new_domains_log.txt
+          
+          # 检查脚本是否成功执行
+          if [ $? -ne 0 ]; then
+            echo "生成新域名文件脚本执行失败，查看日志获取详细信息"
+            cat new_domains_log.txt
+            exit 1
+          fi
 
       # 提交结果
       - name: Commit results
