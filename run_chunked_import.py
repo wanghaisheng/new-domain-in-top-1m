@@ -201,10 +201,6 @@ def verify_data_files(historical_data_dir='historical_extracts'):
                                     logging.info(f"将下载的文件复制为CSV: {zip_file} -> {csv_file}")
                         except Exception as e2:
                             logging.error(f"尝试将下载文件作为CSV处理失败: {e2}")
-                        
-                                break
-                    except requests.exceptions.RequestException as e:
-                        logging.error(f"下载失败 {url}: {e}")
         else:
             logging.warning(f"目录 {date_dir} 没有提交哈希文件")
     
