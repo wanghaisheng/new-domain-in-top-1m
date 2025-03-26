@@ -84,11 +84,8 @@ jobs:
           # Run the test batch file
           .\test_workflow.bat
       
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+      - name: Push artifacts
+        uses: ad-m/github-push-action@master
         with:
-          name: import-results
-          path: |
-            domains_rankings.parquet
-            domains_first_seen.parquet
-            last_processed_date.txt
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
