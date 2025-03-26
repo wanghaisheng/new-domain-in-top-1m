@@ -78,8 +78,7 @@ def main():
     # 写入文件
     with open('historical_commits.txt', 'w') as f:
         for sha, date in filtered_commits:
-            line = sha + " " + date + "\\n"
-            f.write(line)
+            f.write(sha + " " + date + "\\n")
     
     # 检查提交记录数量
     commit_count = len(filtered_commits)
@@ -97,8 +96,12 @@ if __name__ == "__main__":
     
     # 写入文件
     with open('prepare_commits.py', 'w', encoding='utf-8') as f:
-        # 修复换行符问题
-        fixed_script = script.replace('\\n', '\n')
+        # 修复换行符问题 - 使用正则表达式替换
+        import re
+        # 先替换 line = sha + " " + date + "\\n" 中的 \\n
+        fixed_script = script.replace('line = sha + " " + date + "\\n"', 'line = sha + " " + date + "\\n"')
+        # 然后替换所有的 \\n 为 \n
+        fixed_script = fixed_script.replace('\\n', '\n')
         f.write(fixed_script)
     
     print("已创建 prepare_commits.py 脚本")
