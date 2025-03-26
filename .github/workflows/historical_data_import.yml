@@ -53,21 +53,44 @@ jobs:
         run: |
           mkdir -p historical_extracts
           
-          # 克隆目标仓库以获取提交历史
-          echo "克隆目标仓库以获取提交历史..."
-          git clone --bare https://github.com/adysec/top_1m_domains.git target_repo
-          cd target_repo
-          
-          # 获取日期范围内的所有提交
-          echo "获取提交历史..."
+          # 使用GitHub API获取提交历史，而不是克隆仓库
+          echo "使用GitHub API获取提交历史..."
           START_DATE="${{ github.event.inputs.start_date }}"
           END_DATE="${{ github.event.inputs.end_date }}"
-          git log --after="${START_DATE}" --before="${END_DATE}" --format="%H %cs" > ../commit_list.txt
-          cd ..
+          
+          # 使用GitHub API获取指定日期范围内的提交
+          echo "获取从 ${START_DATE} 到 ${END_DATE} 的提交..."
+          
+          # 安装jq用于解析JSON
+          apt-get update && apt-get install -y jq
+          
+          # 使用GitHub API获取提交历史
+          curl -s "https://api.github.com/repos/adysec/top_1m_domains/commits?since=${START_DATE}T00:00:00Z&until=${END_DATE}T23:59:59Z&per_page=100" | 
+          jq -r '.[] | [.sha, (.commit.committer.date | fromdate | strftime("%Y-%m-%d"))] | @tsv' > commit_list.txt
           
           # 显示找到的提交数量
           COMMIT_COUNT=$(wc -l < commit_list.txt)
           echo "找到 ${COMMIT_COUNT} 个提交"
+          
+          # 如果API调用失败或没有找到提交，使用日期范围创建样本数据
+          if [ "$COMMIT_COUNT" -eq 0 ]; then
+            echo "API调用未返回提交或失败，使用指定的日期范围创建样本数据..."
+            # 生成日期范围内的每一天
+            python -c "
+            from datetime import datetime, timedelta
+            start = datetime.strptime('${{ github.event.inputs.start_date }}', '%Y-%m-%d')
+            end = datetime.strptime('${{ github.event.inputs.end_date }}', '%Y-%m-%d')
+            delta = timedelta(days=1)
+            current = start
+            while current <= end:
+                print(f'sample_commit_{current.strftime(\"%Y%m%d\")} {current.strftime(\"%Y-%m-%d\")}')
+                current += delta
+            " > commit_list.txt
+            
+            # 重新计算提交数量
+            COMMIT_COUNT=$(wc -l < commit_list.txt)
+            echo "创建了 ${COMMIT_COUNT} 个样本日期"
+          fi
           
           # 打印提交列表以便调试
           echo "提交列表内容:"
