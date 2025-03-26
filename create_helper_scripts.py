@@ -90,13 +90,22 @@ def main():
     
     print("提交列表准备完成")
 
+def main():
+    """创建所有辅助脚本"""
+    create_prepare_commits_script()
+    create_process_commits_script()
+    create_import_data_script()
+    print("所有辅助脚本创建完成")
+
 if __name__ == "__main__":
     main()
 """
     
     # 写入文件
     with open('prepare_commits.py', 'w', encoding='utf-8') as f:
-        f.write(script)
+        # Fix the newline character issue
+        fixed_script = script.replace('\\n', '\\n')
+        f.write(fixed_script)
     
     print("已创建 prepare_commits.py 脚本")
 
