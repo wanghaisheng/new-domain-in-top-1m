@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas matplotlib
+          pip install pandas matplotlib pyarrow
           
       - name: Run rank analysis
         run: |
