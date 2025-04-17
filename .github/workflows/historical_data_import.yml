@@ -1,28 +1,30 @@
-name: Historical Data Import
+name: Historical Data Import to SQLite
 
 on:
-  workflow_dispatch:  # 仅允许手动触发
+  workflow_dispatch:  # 允许手动触发
     inputs:
       start_date:
         description: '开始日期 (YYYY-MM-DD)'
         required: false
-        default: '2024-06-08'
+        default: '2023-06-01'
       end_date:
         description: '结束日期 (YYYY-MM-DD)'
         required: false
-        default: '2025-03-25'
-      batch_size:
-        description: '每批处理的域名数量'
+        default: '2024-05-31'
+      batch_days:
+        description: '每批处理的天数'
         required: false
-        default: '500000'
-      retry_failed:
-        description: '重试失败的块 (true/false)'
+        default: '5'
+      reset_progress:
+        description: '重置进度 (true/false)'
         required: false
         default: 'false'
+  schedule:
+    - cron: '0 * * * *'  # 每小时执行一次
 
 jobs:
   import_historical_data:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
@@ -38,110 +40,81 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 psutil gitpython pandas pyarrow python-magic
+          pip install requests pandas matplotlib gitpython
 
-      # 验证和准备数据文件
-      - name: Verify and prepare data files
+      - name: Create Cache Directories
+        run: mkdir -p data\persisted-to-cache
+          
+      - name: Cache SQLite Database
+        id: cache-sqlite
+        uses: actions/cache@v3
+        with:
+          path: data/persisted-to-cache/domain_rank.db
+          key: sqlite-database-historical-${{ github.sha }}-${{ github.run_number }}
+          restore-keys: |
+            sqlite-database-historical-
+            sqlite-database-
+
+      - name: Process Historical Data
         run: |
-          # 创建历史数据目录
-          mkdir -p historical_extracts
+          # 设置重置进度标志
+          $RESET_FLAG = ""
+          if ("${{ github.event.inputs.reset_progress }}" -eq "true") {
+            $RESET_FLAG = "--reset-progress"
+          }
           
-          # 使用run_chunked_import.py脚本验证数据文件
-          echo "验证数据文件..."
-          python run_chunked_import.py --verify-data
-          
-          # 列出创建的目录和文件
-          echo "创建的目录和文件列表:"
-          find historical_extracts -type f | sort
+          # 运行历史数据处理脚本
+          echo "处理历史数据..."
+          python run_chunked_import.py --process-historical --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}" --batch-days ${{ github.event.inputs.batch_days }} $RESET_FLAG
 
-      # 运行分块导入
-      - name: Run chunked import
+      - name: Check Progress
+        id: check-progress
         run: |
-          # 设置重试标志
-          RETRY_FLAG=""
-          if [ "${{ github.event.inputs.retry_failed }}" = "true" ]; then
-            RETRY_FLAG="--retry-failed"
-          fi
-          
-          # 运行导入脚本 - 让脚本自动确定块参数
-          echo "运行导入脚本..."
-          python run_chunked_import.py --auto-chunks --batch-size ${{ github.event.inputs.batch_size }} ${RETRY_FLAG}
+          # 检查进度文件是否存在
+          if (Test-Path -Path "historical_import_progress.json") {
+            echo "::set-output name=completed::false"
+            echo "历史数据导入尚未完成，将在下次执行时继续"
+          } else {
+            echo "::set-output name=completed::true"
+            echo "历史数据导入已完成"
+          }
 
-      # 生成每日新域名文件
-      - name: Generate daily new domains files
+      - name: Generate Weekly and Monthly Reports
+        if: steps.check-progress.outputs.completed == 'true'
         run: |
-          echo "生成每日新域名文件..."
-          python run_chunked_import.py --generate-new-domains --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}" 2>&1 | tee new_domains_log.txt
+          # 创建报告目录
+          mkdir -p reports\weekly
+          mkdir -p reports\monthly
           
-          # 检查脚本是否成功执行
-          if [ $? -ne 0 ]; then
-            echo "生成新域名文件脚本执行失败，查看日志获取详细信息"
-            cat new_domains_log.txt
-            exit 1
-          fi
+          # 运行报告生成脚本
+          python rank_change_analyzer_local.py --period both
+          
+          # 列出生成的报告
+          dir reports
 
-      # 提交结果
-      - name: Commit results
+      - name: Commit Results
         run: |
-          # 检查结果文件
-          echo "检查结果文件..."
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
           
-          # 列出当前目录文件
-          echo "当前目录文件列表:"
-          ls -la
+          # 添加进度文件
+          if (Test-Path -Path "historical_import_progress.json") {
+            git add historical_import_progress.json
+          }
           
-          if [ -f "domains_rankings.parquet" ] && [ -f "domains_first_seen.parquet" ]; then
-            echo "结果文件存在，准备提交..."
-            
-            # 配置Git
-            git config --local user.email "actions@github.com"
-            git config --local user.name "GitHub Actions"
-            
-            # 显示Git状态
-            echo "提交前Git状态:"
-            git status
-            
-            # 强制添加所有生成的文件
-            echo "添加文件到Git..."
-            git add -f domains_rankings.parquet
-            git add -f domains_first_seen.parquet
-            
-            # 检查new_domains目录是否存在
-            if [ -d "new_domains" ]; then
-              echo "添加new_domains目录..."
-              git add -f new_domains/
-            else
-              echo "警告: new_domains目录不存在"
-              mkdir -p new_domains
-              echo "创建了空的new_domains目录"
-              git add -f new_domains/
-            fi
-            
-            # 再次显示Git状态
-            echo "添加文件后Git状态:"
-            git status
-            
-            # 检查是否有更改
-            CHANGES=$(git status --porcelain | grep -v '??' | wc -l)
-            echo "检测到 ${CHANGES} 个已暂存的更改"
-            
-            if [ "$CHANGES" -gt 0 ]; then
-              echo "提交更改..."
-              git commit -m "Import historical domain rank data and generate new domains files"
-              echo "提交成功"
-            else
-              echo "没有已暂存的更改，尝试强制提交..."
-              # 尝试强制提交
-              touch .gitkeep
-              git add .gitkeep
-              git commit -m "Import historical domain rank data (force commit)"
-              rm .gitkeep
-            fi
-          else
-            echo "结果文件不存在，跳过提交"
-            ls -la
-          fi
-
+          # 添加新域名文件
+          if (Test-Path -Path "new_domains") {
+            git add -f new_domains/
+          }
+          
+          # 添加生成的报告
+          if (Test-Path -Path "reports") {
+            git add -f reports/
+          }
+          
+          # 提交更改
+          git commit -m "Update historical data import progress" -m "Processed batch of historical domain data" || echo "No changes to commit"
+          
       - name: Push changes
         uses: ad-m/github-push-action@master
         with:

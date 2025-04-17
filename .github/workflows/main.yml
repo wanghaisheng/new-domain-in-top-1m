@@ -1,8 +1,8 @@
 name: Daily Domain Rank Update
 
 on:
-  schedule:
-    - cron: '0 0 * * *'  # 每天 UTC 00:00 (北京时间 08:00) 运行
+  # schedule:
+    # - cron: '0 0 * * *'  # 每天 UTC 00:00 (北京时间 08:00) 运行
   workflow_dispatch:  # 允许手动触发
 
 jobs:

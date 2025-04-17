@@ -1,0 +1,48 @@
+name: Domain Ranking Tracker
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天午夜运行
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  track-domains:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 获取完整历史记录
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas
+          
+      - name: Create Cache Directories
+        run: mkdir -p data/persisted-to-cache
+          
+      - name: Cache SQLite Database
+        id: cache-sqlite
+        uses: actions/cache@v3
+        with:
+          path: data/persisted-to-cache/domain_rank.db
+          key: sqlite-database-${{ github.sha }}-${{ github.run_number }}
+          restore-keys: |
+            sqlite-database-
+            
+      - name: Run Domain Tracker
+        run: python track_domains_sqlite.py
+        
+      - name: Commit Results
+        if: success()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add new_domains/
+          git add domains_first_seen.csv
+          git commit -m "Update domain tracking results $(date +'%Y-%m-%d')" || exit 0
+          git push
