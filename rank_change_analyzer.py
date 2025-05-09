@@ -4,15 +4,14 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
-import sqlite3
 import argparse
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# 文件路径配置
-DB_FILE = os.path.join('data', 'persisted-to-cache', 'domain_rank.db')
 REPORT_DIR = os.path.join('reports')
+BACKUP_DIR = 'domains_rankings_backup'
+
 
 def ensure_report_dir():
     """确保报告目录存在"""
@@ -21,40 +20,49 @@ def ensure_report_dir():
         logging.info(f"创建报告目录: {REPORT_DIR}")
 
 def load_rankings_data():
-    """从SQLite数据库加载域名排名数据"""
-    if not os.path.exists(DB_FILE):
-        logging.error(f"数据库文件不存在: {DB_FILE}")
+    """从 domains_rankings_backup 目录下所有分割 CSV 文件加载域名排名数据"""
+    if not os.path.exists(BACKUP_DIR):
+        logging.error(f"备份目录不存在: {BACKUP_DIR}")
         return None
-    
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        
-        # 获取当前年份的表名
-        current_year = datetime.now().year
-        table_name = f"rankings_{current_year}"
-        
-        # 获取所有列名
-        cursor.execute(f"PRAGMA table_info({table_name})")
-        columns = [col[1] for col in cursor.fetchall()]
-        date_columns = [col for col in columns if col not in ['domain', 'last_updated']]
-        
-        if not date_columns:
-            logging.error(f"表 {table_name} 中没有日期列")
-            return None
-        
-        # 构建查询
-        query = f"SELECT domain, {', '.join(date_columns)} FROM {table_name}"
-        
-        # 使用pandas读取SQL查询结果
-        df = pd.read_sql_query(query, conn)
-        logging.info(f"成功加载排名数据，共 {len(df)} 个域名")
-        
-        conn.close()
-        return df
-    except Exception as e:
-        logging.error(f"加载排名数据失败: {e}")
+    all_data = {}
+    date_set = set()
+    for fname in os.listdir(BACKUP_DIR):
+        if fname.startswith('domains_rankings_') and fname.endswith('.csv'):
+            path = os.path.join(BACKUP_DIR, fname)
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f)
+                    header = next(reader)
+                    if len(header) < 2:
+                        continue
+                    date_col = header[1]
+                    date_set.add(date_col)
+                    for row in reader:
+                        if len(row) < 2:
+                            continue
+                        domain, rank = row[0], row[1]
+                        if domain not in all_data:
+                            all_data[domain] = {}
+                        try:
+                            all_data[domain][date_col] = int(rank)
+                        except:
+                            all_data[domain][date_col] = 0
+            except Exception as e:
+                logging.error(f"读取备份文件 {fname} 失败: {e}")
+    if not all_data or not date_set:
+        logging.error("没有有效的域名排名数据")
         return None
+    sorted_dates = sorted(list(date_set))
+    data = {'domain': []}
+    for d in sorted_dates:
+        data[d] = []
+    for domain, date_ranks in all_data.items():
+        data['domain'].append(domain)
+        for d in sorted_dates:
+            data[d].append(date_ranks.get(d, 0))
+    df = pd.DataFrame(data)
+    logging.info(f"成功加载排名数据，共 {len(df)} 个域名，{len(sorted_dates)} 个日期")
+    return df
 
 def get_date_range(period_type):
     """获取日期范围"""
