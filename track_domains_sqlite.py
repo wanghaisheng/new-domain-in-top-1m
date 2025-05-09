@@ -184,6 +184,7 @@ def main():
             # os.remove(parquet_rankings)
             logging.info(f"已删除历史文件: {parquet_rankings}")
         return domains_rankings, domains_first_seen
+    domains_rankings, domains_first_seen = load_domains_history_and_cleanup()
     if domains_rankings or domains_first_seen:
         save_domains_to_sqlite(domains_rankings, domains_first_seen)
         migrate_flat_to_year_tables(domains_rankings)
