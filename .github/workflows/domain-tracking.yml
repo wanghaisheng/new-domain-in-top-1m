@@ -46,7 +46,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add new_domains/
-          git add domains_first_seen.csv
+          git add -A
           git commit -m "Update domain tracking results $(date +'%Y-%m-%d')" || exit 0
           git push
