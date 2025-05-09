@@ -204,6 +204,17 @@ def main():
     zip_file_path = os.path.join("data", ZIP_FILE)
     if not os.path.exists("data"):
         os.makedirs("data")
+    def is_valid_zip(zip_path):
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                bad_file = z.testzip()
+                if bad_file is not None:
+                    logging.error(f"Corrupted file in zip: {bad_file}")
+                    return False
+                return True
+        except Exception as e:
+            logging.error(f"Invalid zip file: {e}")
+            return False
     if not os.path.exists(zip_file_path):
         logging.info(f"Downloading {ZIP_FILE}...")
         try:
@@ -214,12 +225,22 @@ def main():
                     if chunk:
                         f.write(chunk)
             logging.info(f"{ZIP_FILE} downloaded successfully.")
-        except ImportError:
-            logging.warning("Requests library not found, falling back to os.system")
-            os.system(f"wget https://tranco-list.eu/top-1m.csv.zip -O {zip_file_path}")
-            logging.info(f"{ZIP_FILE} downloaded successfully.")
-        except Exception as e:
-            logging.error(f"Error downloading file: {e}")
+            # Check zip validity after download
+            if not is_valid_zip(zip_file_path):
+                logging.warning(f"Downloaded zip file is invalid or corrupted: {zip_file_path}, retrying with wget...")
+                try:
+                    os.system(f"wget https://tranco-list.eu/top-1m.csv.zip -O {zip_file_path}")
+                    logging.info(f"{ZIP_FILE} re-downloaded with wget.")
+                except Exception as e:
+                    logging.error(f"Error re-downloading file with wget: {e}")
+                # Check again after wget
+                if not is_valid_zip(zip_file_path):
+                    logging.error(f"Zip file is still invalid after wget retry: {zip_file_path}")
+                    return
+    # Check zip validity before processing
+    if not is_valid_zip(zip_file_path):
+        logging.error(f"Downloaded zip file is invalid or corrupted: {zip_file_path}")
+        return
     # 解压和处理
     new_domains_dir = os.path.join(os.getcwd(), "new_domains")
     if not os.path.exists(new_domains_dir):
