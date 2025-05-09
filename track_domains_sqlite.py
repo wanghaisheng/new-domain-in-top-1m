@@ -178,10 +178,10 @@ def main():
                 logging.error(f"加载域名排名历史时出错: {e}")
         # 删除 parquet 文件
         if os.path.exists(parquet_first_seen):
-            os.remove(parquet_first_seen)
+            # os.remove(parquet_first_seen)
             logging.info(f"已删除历史文件: {parquet_first_seen}")
         if os.path.exists(parquet_rankings):
-            os.remove(parquet_rankings)
+            # os.remove(parquet_rankings)
             logging.info(f"已删除历史文件: {parquet_rankings}")
         return domains_rankings, domains_first_seen
     if domains_rankings or domains_first_seen:
