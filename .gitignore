@@ -1,0 +1,14 @@
+# 忽略大文件和缓存数据库
+/data/persisted-to-cache/domain_rank.db
+/data/persisted-to-cache/
+*.db
+*.sqlite
+# 忽略tranco原始下载包
+/data/tranco.zip
+# 忽略备份和临时文件
+/domains_rankings_backup/
+/data/domains_first_seen.csv
+/data/domains_first_seen.parquet
+/data/domains_rankings.parquet
+# 忽略新域名输出
+/new_domains/

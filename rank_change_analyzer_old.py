@@ -4,20 +4,15 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
-from collections import defaultdict
-import json
+import sqlite3
 import argparse
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# 文件路径 - 修改为支持 GitHub Actions 环境
-github_workspace = os.environ.get("GITHUB_WORKSPACE", ".")  # 获取 GitHub 工作目录，默认为当前目录
-DOMAINS_RANKINGS_FILE = os.path.join(github_workspace, 'domains_rankings.parquet')
-REPORT_DIR = os.path.join(github_workspace, 'reports')
-DOMAINS_FIRST_SEEN_FILE = os.path.join(github_workspace, 'domains_first_seen.parquet')
+# 文件路径配置
+DB_FILE = os.path.join('data', 'persisted-to-cache', 'domain_rank.db')
+REPORT_DIR = os.path.join('reports')
 
 def ensure_report_dir():
     """确保报告目录存在"""
@@ -26,85 +21,47 @@ def ensure_report_dir():
         logging.info(f"创建报告目录: {REPORT_DIR}")
 
 def load_rankings_data():
-    """加载域名排名数据"""
-    if not os.path.exists(DOMAINS_RANKINGS_FILE):
-        logging.error(f"排名数据文件不存在: {DOMAINS_RANKINGS_FILE}")
+    """从SQLite数据库加载域名排名数据"""
+    if not os.path.exists(DB_FILE):
+        logging.error(f"数据库文件不存在: {DB_FILE}")
         return None
-    
     try:
-        # 使用pandas读取Parquet文件，更高效处理大数据
-        df = pd.read_parquet(DOMAINS_RANKINGS_FILE)
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        current_year = datetime.now().year
+        table_name = f"rankings_{current_year}"
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = [col[1] for col in cursor.fetchall()]
+        date_columns = [col for col in columns if col not in ['domain', 'last_updated']]
+        if not date_columns:
+            logging.error(f"表 {table_name} 中没有日期列")
+            return None
+        query = f"SELECT domain, {', '.join(date_columns)} FROM {table_name}"
+        df = pd.read_sql_query(query, conn)
         logging.info(f"成功加载排名数据，共 {len(df)} 个域名")
+        conn.close()
         return df
     except Exception as e:
         logging.error(f"加载排名数据失败: {e}")
         return None
 
 def get_date_range(period_type):
-    """获取日期范围
-    
-    Args:
-        period_type: 'week' 或 'month'
-    
-    Returns:
-        tuple: (start_date, end_date) 格式为 'YYYY-MM-DD'
-    """
+    """获取日期范围"""
     today = datetime.now()
     end_date = today.strftime('%Y-%m-%d')
-    
     if period_type == 'week':
-        # 计算过去7天的日期范围
         start_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')
     elif period_type == 'month':
-        # 计算过去30天的日期范围
         start_date = (today - timedelta(days=30)).strftime('%Y-%m-%d')
     else:
         raise ValueError(f"不支持的周期类型: {period_type}")
-    
-    return start_date, end_date
-
-def get_custom_date_range(start_date, end_date):
-    """获取自定义日期范围
-    
-    Args:
-        start_date: 开始日期，格式为 'YYYY-MM-DD'
-        end_date: 结束日期，格式为 'YYYY-MM-DD'
-    
-    Returns:
-        tuple: (start_date, end_date)
-    """
-    # 验证日期格式
-    try:
-        datetime.strptime(start_date, '%Y-%m-%d')
-        datetime.strptime(end_date, '%Y-%m-%d')
-    except ValueError:
-        logging.error(f"日期格式错误，应为 YYYY-MM-DD")
-        return None, None
-    
-    # 确保开始日期不晚于结束日期
-    if start_date > end_date:
-        logging.warning(f"开始日期 {start_date} 晚于结束日期 {end_date}，将交换两个日期")
-        start_date, end_date = end_date, start_date
-    
     return start_date, end_date
 
 def calculate_rank_changes(df, start_date, end_date):
-    """计算排名变化
-    
-    Args:
-        df: 包含排名数据的DataFrame
-        start_date: 开始日期
-        end_date: 结束日期
-    
-    Returns:
-        DataFrame: 包含排名变化的数据
-    """
-    # 检查日期列是否存在
+    """计算排名变化"""
     if start_date not in df.columns or end_date not in df.columns:
         available_dates = [col for col in df.columns if col != 'domain']
         available_dates.sort()
-        
-        # 如果指定的日期不存在，尝试找到最近的日期
         if start_date not in df.columns:
             available_start_dates = [d for d in available_dates if d <= start_date]
             if available_start_dates:
@@ -113,7 +70,6 @@ def calculate_rank_changes(df, start_date, end_date):
             else:
                 logging.error(f"找不到合适的开始日期")
                 return None
-        
         if end_date not in df.columns:
             available_end_dates = [d for d in available_dates if d <= end_date]
             if available_end_dates:
@@ -122,60 +78,34 @@ def calculate_rank_changes(df, start_date, end_date):
             else:
                 logging.error(f"找不到合适的结束日期")
                 return None
-    
-    # 计算排名变化
-    # 注意：排名为0表示域名不在排名中，我们需要特殊处理
-    # 创建一个新的DataFrame来存储结果
     result = pd.DataFrame()
     result['domain'] = df['domain']
-    
-    # 复制开始和结束日期的排名
     result['start_rank'] = df[start_date]
     result['end_rank'] = df[end_date]
-    
-    # 计算排名变化（上升为正，下降为负）
-    # 对于排名为0的情况需要特殊处理
     def calculate_change(row):
         start = row['start_rank']
         end = row['end_rank']
-        
-        # 如果开始时不在排名中，结束时在排名中，视为新进入
         if start == 0 and end > 0:
-            return 1000000  # 使用一个大数表示新进入
-        
-        # 如果开始时在排名中，结束时不在排名中，视为退出
+            return 1000000  # 新进入
         if start > 0 and end == 0:
-            return -1000000  # 使用一个大负数表示退出
-        
-        # 如果都不在排名中，变化为0
+            return -1000000  # 退出
         if start == 0 and end == 0:
             return 0
-        
-        # 正常计算排名变化（注意排名数字越小表示排名越高）
         return start - end
-    
     result['rank_change'] = result.apply(calculate_change, axis=1)
-    
-    # 计算排名变化百分比
     def calculate_percent(row):
         start = row['start_rank']
         end = row['end_rank']
         change = row['rank_change']
-        
-        # 特殊情况处理
-        if change == 1000000:  # 新进入
+        if change == 1000000:
             return "新进入"
-        if change == -1000000:  # 退出
+        if change == -1000000:
             return "退出排名"
         if start == 0 or end == 0:
             return "0%"
-        
-        # 计算百分比变化
         percent = (start - end) / start * 100
         return f"{percent:.2f}%"
-    
     result['change_percent'] = result.apply(calculate_percent, axis=1)
-    
     return result
 
 def generate_report(changes_df, period_type, start_date, end_date):

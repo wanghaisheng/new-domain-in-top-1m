@@ -223,6 +223,18 @@ def main():
     if not is_valid_zip(zip_file_path):
         logging.error(f"Zip file is invalid or corrupted: {zip_file_path}")
         return
+    # === 新增：处理完毕后重命名zip文件 ===
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    zip_file_newname = os.path.join("data", f"tranco_{date_str}.zip")
+    if not os.path.exists(zip_file_newname):
+        try:
+            os.rename(zip_file_path, zip_file_newname)
+            logging.info(f"tranco.zip 已重命名为: {zip_file_newname}")
+            zip_file_path = zip_file_newname
+        except Exception as e:
+            logging.error(f"重命名tranco.zip失败: {e}")
+    else:
+        zip_file_path = zip_file_newname
     # 解压和处理
     new_domains_dir = os.path.join(os.getcwd(), "new_domains")
     if not os.path.exists(new_domains_dir):
