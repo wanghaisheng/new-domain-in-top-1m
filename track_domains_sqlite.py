@@ -39,6 +39,7 @@ def load_domains_from_csv():
     if not os.path.exists(BACKUP_DIR):
         logging.warning(f"备份目录不存在: {BACKUP_DIR}")
         return domains_rankings, domains_first_seen
+    # 只读取宽表格式的 domains_rankings_*.csv 文件
     for fname in os.listdir(BACKUP_DIR):
         if fname.startswith('domains_rankings_') and fname.endswith('.csv'):
             path = os.path.join(BACKUP_DIR, fname)
@@ -46,18 +47,21 @@ def load_domains_from_csv():
                 with open(path, 'r', encoding='utf-8') as f:
                     reader = csv.reader(f)
                     header = next(reader)
-                    date_col = header[1] if len(header) > 1 else None
+                    date_cols = header[1:]  # 第一列是 domain，后面是日期
                     for row in reader:
                         if len(row) < 2:
                             continue
-                        domain, rank = row[0], row[1]
+                        domain = row[0]
                         if domain not in domains_rankings:
                             domains_rankings[domain] = {}
-                        if date_col:
-                            try:
-                                domains_rankings[domain][date_col] = int(rank)
-                            except:
-                                domains_rankings[domain][date_col] = 0
+                        for idx, date_col in enumerate(date_cols):
+                            if idx+1 < len(row):
+                                try:
+                                    rank = int(row[idx+1]) if row[idx+1] else None
+                                except:
+                                    rank = None
+                                if rank is not None:
+                                    domains_rankings[domain][date_col] = rank
             except Exception as e:
                 logging.error(f"读取备份文件 {fname} 失败: {e}")
     # 加载首次出现日期
@@ -88,25 +92,111 @@ def save_domains_to_csv(domains_rankings, domains_first_seen, date_str):
         logging.info(f"首次出现日期已保存: {first_seen_file}")
     except Exception as e:
         logging.error(f"保存首次出现日期失败: {e}")
-    # 保存 domains_rankings 按分割
+    # 保存 domains_rankings 为宽表格式
     all_domains = list(domains_rankings.keys())
+    # 收集所有日期
+    all_dates = set()
+    for v in domains_rankings.values():
+        all_dates.update(v.keys())
+    all_dates = sorted(all_dates)
     total = len(all_domains)
     for i in range(0, total, BACKUP_SPLIT_SIZE):
         chunk_domains = all_domains[i:i+BACKUP_SPLIT_SIZE]
-        backup_file = os.path.join(BACKUP_DIR, f"domains_rankings_{date_str}_part_{i//BACKUP_SPLIT_SIZE+1}.csv")
+        backup_file = os.path.join(BACKUP_DIR, f"domains_rankings_part_{i//BACKUP_SPLIT_SIZE+1}.csv")
         try:
             with open(backup_file, 'w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['domain', date_str])
+                writer.writerow(['domain'] + all_dates)
                 for domain in chunk_domains:
-                    rank = domains_rankings[domain].get(date_str, '')
-                    writer.writerow([domain, rank])
-            logging.info(f"备份分割文件已保存: {backup_file}")
+                    row = [domain]
+                    for date in all_dates:
+                        rank = domains_rankings[domain].get(date, '')
+                        row.append(rank)
+                    writer.writerow(row)
+            logging.info(f"宽表备份分割文件已保存: {backup_file}")
         except Exception as e:
-            logging.error(f"保存分割文件失败: {e}")
+            logging.error(f"保存宽表分割文件失败: {e}")
+
+# ========== Parquet 迁移相关 ==========
+def migrate_parquet_to_csv():
+    parquet_file = 'domains_rankings.parquet'
+    if not os.path.exists(parquet_file):
+        return
+    try:
+        df = pd.read_parquet(parquet_file)
+        # 兼容不同格式，假设有列：domain, date, rank
+        if not {'domain', 'date', 'rank'}.issubset(df.columns):
+            logging.error(f"parquet文件缺少必要列: {df.columns}")
+            return
+        domains_rankings = {}
+        domains_first_seen = {}
+        for _, row in df.iterrows():
+            domain = row['domain']
+            date = row['date']
+            rank = row['rank']
+            if domain not in domains_rankings:
+                domains_rankings[domain] = {}
+            domains_rankings[domain][date] = rank
+            if domain not in domains_first_seen or date < domains_first_seen[domain]:
+                domains_first_seen[domain] = date
+        # 获取所有日期，按日期分割备份
+        all_dates = sorted({d for v in domains_rankings.values() for d in v.keys()})
+        for date_str in all_dates:
+            save_domains_to_csv(domains_rankings, domains_first_seen, date_str)
+        os.remove(parquet_file)
+        logging.info(f"parquet历史数据已迁移并删除: {parquet_file}")
+    except Exception as e:
+        logging.error(f"parquet迁移失败: {e}")
+
+# ========== Parquet 迁移相关 ==========
+def migrate_first_seen_parquet_to_csv():
+    parquet_file = 'domains_first_seen.parquet'
+    first_seen_file = os.path.join(BACKUP_DIR, 'domains_first_seen.csv')
+    if not os.path.exists(parquet_file):
+        return
+    try:
+        df = pd.read_parquet(parquet_file)
+        if not {'domain', 'first_seen'}.issubset(df.columns):
+            logging.error(f"parquet文件缺少必要列: {df.columns}")
+            return
+        # 读取parquet并合并到csv
+        first_seen_dict = {}
+        for _, row in df.iterrows():
+            domain = row['domain']
+            first_seen = row['first_seen']
+            first_seen_dict[domain] = first_seen
+        # 如果csv已存在，合并历史
+        if os.path.exists(first_seen_file):
+            try:
+                with open(first_seen_file, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f)
+                    next(reader)
+                    for row in reader:
+                        if len(row) >= 2:
+                            d, fs = row[0], row[1]
+                            if d not in first_seen_dict or fs < first_seen_dict[d]:
+                                first_seen_dict[d] = fs
+            except Exception as e:
+                logging.error(f"读取csv历史失败: {e}")
+        # 保存合并后的csv
+        try:
+            with open(first_seen_file, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['domain', 'first_seen'])
+                for domain, first_seen in first_seen_dict.items():
+                    writer.writerow([domain, first_seen])
+            logging.info(f"首次出现日期parquet已迁移并合并到csv: {first_seen_file}")
+        except Exception as e:
+            logging.error(f"保存合并csv失败: {e}")
+        os.remove(parquet_file)
+        logging.info(f"parquet历史数据已迁移并删除: {parquet_file}")
+    except Exception as e:
+        logging.error(f"parquet迁移失败: {e}")
 
 # ========== 主流程 ==========
 def main():
+    migrate_parquet_to_csv()
+    migrate_first_seen_parquet_to_csv()
     # 加载历史数据
     domains_rankings, domains_first_seen = load_domains_from_csv()
     process_history = load_process_history()
@@ -154,7 +244,6 @@ def main():
                 reader = csv.reader(codecs.getreader("utf-8")(csvfile))
                 data = list(reader)[1:]
         year = int(date_str[:4])
-        new_domains = []
         current_domains = set()
         for row in data:
             if len(row) == 2:
@@ -166,15 +255,15 @@ def main():
                     if domain not in domains_rankings:
                         domains_rankings[domain] = {}
                     domains_rankings[domain][date_str] = rank
-                    # 检查是否为新域名
+                    # 检查首次出现
                     if domain not in domains_first_seen:
                         domains_first_seen[domain] = date_str
-                        new_domains.append(domain)
                 except Exception as e:
                     logging.warning(f"Row parse error: {row}, {e}")
-        # 输出新域名
+        # 生成真正新增域名
+        new_domains = sorted(list(current_domains - set(domains_first_seen.keys())))
         if new_domains:
-            output_file = os.path.join(new_domains_dir, f"new_domains_{date_str}.txt")
+            output_file = os.path.join(new_domains_dir, f"{date_str}.txt")
             with open(output_file, 'w', encoding='utf-8') as f:
                 for d in new_domains:
                     f.write(d + '\n')
