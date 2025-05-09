@@ -271,7 +271,6 @@ def main():
         if batch:
             cursor.executemany("INSERT OR IGNORE INTO domains (domain, first_seen) VALUES (?, ?)", batch)
         conn.commit()
-        conn.close()
         # 输出新域名
         if new_domains:
             output_file = os.path.join(new_domains_dir, f"new_domains_{date_str}.txt")
@@ -300,7 +299,6 @@ def main():
                 logging.info(f"备份分割文件已保存: {backup_file}")
         except Exception as e:
             logging.error(f"备份 domains_rankings 分割文件失败: {e}")
-        conn.commit()
         conn.close()
         # 更新首次出现日期文件
         # 已移除 parquet/csv 保存逻辑
