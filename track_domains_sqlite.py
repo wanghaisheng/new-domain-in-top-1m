@@ -215,34 +215,13 @@ def main():
         except Exception as e:
             logging.error(f"Invalid zip file: {e}")
             return False
+    # 只处理已存在的zip文件，不再下载
     if not os.path.exists(zip_file_path):
-        logging.info(f"Downloading {ZIP_FILE}...")
-        try:
-            import requests
-            response = requests.get("https://tranco-list.eu/top-1m.csv.zip", stream=True)
-            with open(zip_file_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            logging.info(f"{ZIP_FILE} downloaded successfully.")
-            # Check zip validity after download
-            if not is_valid_zip(zip_file_path):
-                logging.warning(f"Downloaded zip file is invalid or corrupted: {zip_file_path}, retrying with wget...")
-                try:
-                    os.system(f"wget https://tranco-list.eu/top-1m.csv.zip -O {zip_file_path}")
-                    logging.info(f"{ZIP_FILE} re-downloaded with wget.")
-                except Exception as e:
-                    logging.error(f"Error re-downloading file with wget: {e}")
-                # Check again after wget
-                if not is_valid_zip(zip_file_path):
-                    logging.error(f"Zip file is still invalid after wget retry: {zip_file_path}")
-                    return
-        except Exception as e:
-            logging.error(f"Error downloading file: {e}")
-            return
+        logging.error(f"Zip file not found: {zip_file_path}")
+        return
     # Check zip validity before processing
     if not is_valid_zip(zip_file_path):
-        logging.error(f"Downloaded zip file is invalid or corrupted: {zip_file_path}")
+        logging.error(f"Zip file is invalid or corrupted: {zip_file_path}")
         return
     # 解压和处理
     new_domains_dir = os.path.join(os.getcwd(), "new_domains")

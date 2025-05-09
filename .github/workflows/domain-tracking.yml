@@ -34,6 +34,9 @@ jobs:
           restore-keys: |
             sqlite-database-
             
+      - name: Download Tranco Zip
+        run: wget -O data/tranco.zip "https://tranco-list.eu/top-1m.csv.zip"
+        
       - name: Run Domain Tracker
         run: python track_domains_sqlite.py
         
