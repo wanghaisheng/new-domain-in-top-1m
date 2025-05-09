@@ -237,6 +237,9 @@ def main():
                 if not is_valid_zip(zip_file_path):
                     logging.error(f"Zip file is still invalid after wget retry: {zip_file_path}")
                     return
+        except Exception as e:
+            logging.error(f"Error downloading file: {e}")
+            return
     # Check zip validity before processing
     if not is_valid_zip(zip_file_path):
         logging.error(f"Downloaded zip file is invalid or corrupted: {zip_file_path}")
