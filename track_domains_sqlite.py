@@ -300,6 +300,8 @@ def main():
                 logging.info(f"备份分割文件已保存: {backup_file}")
         except Exception as e:
             logging.error(f"备份 domains_rankings 分割文件失败: {e}")
+        conn.commit()
+        conn.close()
         # 更新首次出现日期文件
         # 已移除 parquet/csv 保存逻辑
         try:
@@ -307,10 +309,11 @@ def main():
                 {'domain': domain, 'first_seen': first_seen}
                 for domain, first_seen in domains_first_seen.items()
             ])
-            df_first_seen.to_csv('data/domains_first_seen.csv', index=False)
-            logging.info(f"首次出现日期已保存, 共{len(domains_first_seen)}条")
+            csv_first_seen_path = os.path.join('data', 'domains_first_seen.csv')
+            df_first_seen.to_csv(csv_first_seen_path, index=False, encoding='utf-8')
+            logging.info(f"首次出现日期已保存为 CSV: {csv_first_seen_path}")
         except Exception as e:
-            logging.error(f"保存首次出现日期失败: {e}")
+            logging.error(f"保存 domains_first_seen.csv 失败: {e}")
         # 更新处理历史
         if date_str not in process_history['dates']:
             process_history['dates'].append(date_str)
