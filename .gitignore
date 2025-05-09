@@ -6,9 +6,9 @@
 # 忽略tranco原始下载包
 /data/tranco.zip
 # 忽略备份和临时文件
-/domains_rankings_backup/
-/data/domains_first_seen.csv
-/data/domains_first_seen.parquet
-/data/domains_rankings.parquet
+# /domains_rankings_backup/
+# /data/domains_first_seen.csv
+# /data/domains_first_seen.parquet
+# /data/domains_rankings.parquet
 # 忽略新域名输出
-/new_domains/
+# /new_domains/

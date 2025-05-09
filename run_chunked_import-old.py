@@ -8,6 +8,11 @@ import logging
 import subprocess
 import requests
 from datetime import datetime
+import zipfile
+import codecs
+import json
+import csv
+import pandas as pd
 
 # 配置日志记录
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -499,12 +504,191 @@ def main():
         logging.critical(traceback.format_exc())
         sys.exit(1)
 
-if __name__ == "__main__":
+# 进度记录相关
+PROCESS_HISTORY_FILE = os.path.join('data', 'process_history_chunked.json')
+def load_process_history():
+    if os.path.exists(PROCESS_HISTORY_FILE):
+        try:
+            with open(PROCESS_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"加载处理历史记录失败: {e}")
+    return {'commits': []}
+def save_process_history(history):
     try:
-        logging.debug("脚本作为主程序启动")
-        main()
+        with open(PROCESS_HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(history, f, indent=2, ensure_ascii=False)
+        logging.info("处理历史记录已更新")
     except Exception as e:
-        logging.critical(f"主程序执行过程中发生未捕获的异常: {e}")
-        import traceback
-        logging.critical(traceback.format_exc())
-        sys.exit(1)
+        logging.error(f"保存处理历史记录失败: {e}")
+# ========== 域名数据持久化 ==========
+BACKUP_DIR = 'domains_rankings_backup'
+BACKUP_SPLIT_SIZE = 1000000
+def load_domains_from_csv():
+    domains_rankings = {}
+    domains_first_seen = {}
+    if not os.path.exists(BACKUP_DIR):
+        logging.warning(f"备份目录不存在: {BACKUP_DIR}")
+        return domains_rankings, domains_first_seen
+    for fname in os.listdir(BACKUP_DIR):
+        if fname.startswith('domains_rankings_') and fname.endswith('.csv'):
+            path = os.path.join(BACKUP_DIR, fname)
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f)
+                    header = next(reader)
+                    date_col = header[1] if len(header) > 1 else None
+                    for row in reader:
+                        if len(row) < 2:
+                            continue
+                        domain, rank = row[0], row[1]
+                        if domain not in domains_rankings:
+                            domains_rankings[domain] = {}
+                        if date_col:
+                            try:
+                                domains_rankings[domain][date_col] = int(rank)
+                            except:
+                                domains_rankings[domain][date_col] = 0
+            except Exception as e:
+                logging.error(f"读取备份文件 {fname} 失败: {e}")
+    # 加载首次出现日期
+    first_seen_file = os.path.join(BACKUP_DIR, 'domains_first_seen.csv')
+    if os.path.exists(first_seen_file):
+        try:
+            with open(first_seen_file, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                next(reader)
+                for row in reader:
+                    if len(row) >= 2:
+                        domains_first_seen[row[0]] = row[1]
+        except Exception as e:
+            logging.error(f"读取首次出现日期失败: {e}")
+    return domains_rankings, domains_first_seen
+def save_domains_to_csv(domains_rankings, domains_first_seen, date_str):
+    if not os.path.exists(BACKUP_DIR):
+        os.makedirs(BACKUP_DIR)
+    # 保存 domains_first_seen
+    first_seen_file = os.path.join(BACKUP_DIR, 'domains_first_seen.csv')
+    try:
+        with open(first_seen_file, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['domain', 'first_seen'])
+            for domain, first_seen in domains_first_seen.items():
+                writer.writerow([domain, first_seen])
+        logging.info(f"首次出现日期已保存: {first_seen_file}")
+    except Exception as e:
+        logging.error(f"保存首次出现日期失败: {e}")
+    # 保存 domains_rankings 按分割
+    all_domains = list(domains_rankings.keys())
+    total = len(all_domains)
+    for i in range(0, total, BACKUP_SPLIT_SIZE):
+        chunk_domains = all_domains[i:i+BACKUP_SPLIT_SIZE]
+        backup_file = os.path.join(BACKUP_DIR, f"domains_rankings_{date_str}_part_{i//BACKUP_SPLIT_SIZE+1}.csv")
+        try:
+            with open(backup_file, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['domain', date_str])
+                for domain in chunk_domains:
+                    rank = domains_rankings[domain].get(date_str, '')
+                    writer.writerow([domain, rank])
+            logging.info(f"备份分割文件已保存: {backup_file}")
+        except Exception as e:
+            logging.error(f"保存分割文件失败: {e}")
+def process_historical_zips_by_commit(start_date=None, end_date=None, repo="adysec/top_1m_domains"):
+    """
+    遍历2024年至今所有commit，按日期构造zip下载链接，下载并处理zip，支持断点续传。
+    """
+    # 加载历史数据
+    domains_rankings, domains_first_seen = load_domains_from_csv()
+    process_history = load_process_history()
+    processed_commits = set(process_history.get('commits', []))
+    # 获取commit列表
+    commits = fetch_commits_by_date_range(start_date, end_date, repo)
+    if not commits:
+        logging.error("未获取到任何commit，无法处理历史数据")
+        return
+    if not os.path.exists("data"):
+        os.makedirs("data")
+    new_domains_dir = os.path.join(os.getcwd(), "new_domains")
+    if not os.path.exists(new_domains_dir):
+        os.makedirs(new_domains_dir)
+    for c in commits:
+        commit_hash = c['commit_hash']
+        date_str = c['date']
+        if commit_hash in processed_commits:
+            logging.info(f"已处理过commit {commit_hash}，跳过")
+            continue
+        zip_url = f"https://github.com/adysec/top_1m_domains/raw/{commit_hash}/tranco.zip"
+        zip_file_path = os.path.join("data", f"tranco_{date_str}_{commit_hash[:8]}.zip")
+        # 下载zip
+        try:
+            if not os.path.exists(zip_file_path):
+                logging.info(f"下载zip: {zip_url}")
+                resp = requests.get(zip_url, timeout=60)
+                if resp.status_code == 200:
+                    with open(zip_file_path, 'wb') as f:
+                        f.write(resp.content)
+                    logging.info(f"已保存zip到: {zip_file_path}")
+                else:
+                    logging.warning(f"下载zip失败: {zip_url} 状态码: {resp.status_code}")
+                    continue
+            # 校验zip
+            def is_valid_zip(zip_path):
+                try:
+                    with zipfile.ZipFile(zip_path, 'r') as z:
+                        bad_file = z.testzip()
+                        if bad_file is not None:
+                            logging.error(f"Corrupted file in zip: {bad_file}")
+                            return False
+                        return True
+                except Exception as e:
+                    logging.error(f"Invalid zip file: {e}")
+                    return False
+            if not is_valid_zip(zip_file_path):
+                logging.error(f"Zip文件无效或损坏: {zip_file_path}")
+                continue
+            # 解压并处理csv
+            csv_file_name = "top-1m.csv"
+            with zipfile.ZipFile(zip_file_path, 'r') as z:
+                with z.open(csv_file_name, 'r') as csvfile:
+                    reader = csv.reader(codecs.getreader("utf-8")(csvfile))
+                    data = list(reader)[1:]
+            new_domains = []
+            current_domains = set()
+            for row in data:
+                if len(row) == 2:
+                    try:
+                        rank = int(row[0].strip())
+                        domain = row[1].strip()
+                        current_domains.add(domain)
+                        if domain not in domains_rankings:
+                            domains_rankings[domain] = {}
+                        domains_rankings[domain][date_str] = rank
+                        if domain not in domains_first_seen:
+                            domains_first_seen[domain] = date_str
+                            new_domains.append(domain)
+                    except Exception as e:
+                        logging.warning(f"Row parse error: {row}, {e}")
+            # 输出新域名
+            if new_domains:
+                output_file = os.path.join(new_domains_dir, f"new_domains_{date_str}.txt")
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    for d in new_domains:
+                        f.write(d + '\n')
+                logging.info(f"新域名已输出到: {output_file}")
+            # 保存到CSV备份
+            save_domains_to_csv(domains_rankings, domains_first_seen, date_str)
+            # 记录进度
+            process_history['commits'].append(commit_hash)
+            save_process_history(process_history)
+        except Exception as e:
+            logging.error(f"处理commit {commit_hash} 失败: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+    logging.info("所有历史zip处理完成")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--start-date', type=str, help='开始日期 (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, help='结束日期 (YYYY-MM-DD)')
+    args = parser.parse_args()
+    process_historical_zips_by_commit(args.start_date, args.end_date)
