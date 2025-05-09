@@ -29,7 +29,7 @@ def load_domains_history_and_cleanup():
             for _, row in df.iterrows():
                 domains_first_seen[row['domain']] = row['first_seen']
             logging.info(f"Loaded {len(domains_first_seen)} domains first seen dates from parquet")
-            os.remove(parquet_first_seen)
+            # os.remove(parquet_first_seen)
             logging.info(f"Deleted {parquet_first_seen}")
         except Exception as e:
             logging.error(f"Error loading or deleting {parquet_first_seen}: {e}")
