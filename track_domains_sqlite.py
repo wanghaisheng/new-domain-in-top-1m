@@ -245,6 +245,8 @@ def main():
                 data = list(reader)[1:]
         year = int(date_str[:4])
         current_domains = set()
+        new_domains = []
+        
         for row in data:
             if len(row) == 2:
                 try:
@@ -258,10 +260,10 @@ def main():
                     # 检查首次出现
                     if domain not in domains_first_seen:
                         domains_first_seen[domain] = date_str
+                        new_domains.append(domain)
                 except Exception as e:
                     logging.warning(f"Row parse error: {row}, {e}")
         # 生成真正新增域名
-        new_domains = sorted(list(current_domains - set(domains_first_seen.keys())))
         if new_domains:
             output_file = os.path.join(new_domains_dir, f"{date_str}.txt")
             with open(output_file, 'w', encoding='utf-8') as f:
