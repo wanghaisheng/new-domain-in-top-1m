@@ -19,8 +19,8 @@ on:
         description: '重置进度 (true/false)'
         required: false
         default: 'false'
-  schedule:
-    - cron: '0 * * * *'  # 每小时执行一次
+  # schedule:
+    # - cron: '0 * * * *'  # 每小时执行一次
 
 jobs:
   import_historical_data:
