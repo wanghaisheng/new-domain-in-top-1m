@@ -11,7 +11,7 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 BACKUP_DIR = 'domains_rankings_backup'
-BACKUP_SPLIT_SIZE = 1000000
+BACKUP_SPLIT_SIZE = 500000
 PROCESS_HISTORY_FILE = os.path.join('data', 'process_history.json')
 
 # ========== 处理历史记录 ==========
