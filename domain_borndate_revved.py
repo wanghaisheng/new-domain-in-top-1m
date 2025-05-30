@@ -104,13 +104,38 @@ async def process_batch(batch_domains):
             results.append(r)
     return results
 
-for batch_start in range(last_id, total, BATCH_SIZE):
-    batch_end = min(batch_start + BATCH_SIZE, total)
-    batch_domains = domains[batch_start:batch_end]
-    logging.info(f'Processing {batch_start} - {batch_end}')
-    batch_results = asyncio.run(process_batch(batch_domains))
-    result_file = os.path.join(RESULT_DIR, f'borndate_revved_{batch_start}_{batch_end}.csv')
-    pd.DataFrame(batch_results, columns=['domain', 'borndate']).to_csv(result_file, index=False)
-    with open(PROGRESS_FILE, 'w') as f:
-        f.write(str(batch_end))
-    logging.info(f'Saved {result_file}, progress updated to {batch_end}') 
+def process_domains():
+    """
+    遍历 new_domains 目录下所有 .txt 文件，读取域名，批量处理并将结果保存为新 CSV 文件
+    """
+    import glob
+    import pandas as pd
+    import asyncio
+    import os
+    import logging
+    new_domains_dir = os.path.join(os.getcwd(), "new_domains")
+    result_dir = os.path.join(os.getcwd(), "borndate_results")
+    os.makedirs(result_dir, exist_ok=True)
+    txt_files = glob.glob(os.path.join(new_domains_dir, "*.txt"))
+    for txt_file in txt_files:
+        date_str = datetime.now().strftime('%Y-%m-%d')
+
+        if date_str !=os.path.splitext(os.path.basename(txt_file))[0]:
+            continue
+        with open(txt_file, 'r', encoding='utf-8') as f:
+            domains = [line.strip() for line in f if line.strip()]
+        if not domains:
+            continue
+        logging.info(f"处理 {txt_file}，共 {len(domains)} 个域名")
+        # 分批处理
+        BATCH_SIZE = 1000
+        all_results = []
+        for batch_start in range(0, len(domains), BATCH_SIZE):
+            batch_domains = domains[batch_start:batch_start+BATCH_SIZE]
+            batch_results = asyncio.run(process_batch(batch_domains))
+            all_results.extend(batch_results)
+        # 保存结果
+        result_file = os.path.join(result_dir, f"{date_str}.csv")
+        pd.DataFrame(all_results, columns=['domain', 'borndate']).to_csv(result_file, index=False)
+        logging.info(f"已保存结果到 {result_file}")
+

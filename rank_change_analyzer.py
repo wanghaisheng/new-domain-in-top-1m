@@ -20,12 +20,13 @@ def ensure_report_dir():
         logging.info(f"创建报告目录: {REPORT_DIR}")
 
 def load_rankings_data():
-    """从 domains_rankings_backup 目录下所有分割 CSV 文件加载域名排名数据"""
+    """从 domains_rankings_backup 目录下所有宽表分割 CSV 文件加载域名排名数据，并加载首次出现日期"""
     if not os.path.exists(BACKUP_DIR):
         logging.error(f"备份目录不存在: {BACKUP_DIR}")
         return None
     all_data = {}
     date_set = set()
+    # 加载宽表分片
     for fname in os.listdir(BACKUP_DIR):
         if fname.startswith('domains_rankings_') and fname.endswith('.csv'):
             path = os.path.join(BACKUP_DIR, fname)
@@ -33,22 +34,36 @@ def load_rankings_data():
                 with open(path, 'r', encoding='utf-8') as f:
                     reader = csv.reader(f)
                     header = next(reader)
-                    if len(header) < 2:
-                        continue
-                    date_col = header[1]
-                    date_set.add(date_col)
+                    date_cols = header[1:]
+                    date_set.update(date_cols)
                     for row in reader:
                         if len(row) < 2:
                             continue
-                        domain, rank = row[0], row[1]
+                        domain = row[0]
                         if domain not in all_data:
                             all_data[domain] = {}
-                        try:
-                            all_data[domain][date_col] = int(rank)
-                        except:
-                            all_data[domain][date_col] = 0
+                        for idx, date_col in enumerate(date_cols):
+                            if idx+1 < len(row):
+                                try:
+                                    rank = int(row[idx+1]) if row[idx+1] else 0
+                                except:
+                                    rank = 0
+                                all_data[domain][date_col] = rank
             except Exception as e:
                 logging.error(f"读取备份文件 {fname} 失败: {e}")
+    # 加载首次出现日期
+    first_seen_dict = {}
+    first_seen_file = os.path.join(BACKUP_DIR, 'domains_first_seen.csv')
+    if os.path.exists(first_seen_file):
+        try:
+            with open(first_seen_file, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                next(reader)
+                for row in reader:
+                    if len(row) >= 2:
+                        first_seen_dict[row[0]] = row[1]
+        except Exception as e:
+            logging.error(f"读取首次出现日期失败: {e}")
     if not all_data or not date_set:
         logging.error("没有有效的域名排名数据")
         return None
@@ -56,10 +71,12 @@ def load_rankings_data():
     data = {'domain': []}
     for d in sorted_dates:
         data[d] = []
+    data['first_seen'] = []
     for domain, date_ranks in all_data.items():
         data['domain'].append(domain)
         for d in sorted_dates:
             data[d].append(date_ranks.get(d, 0))
+        data['first_seen'].append(first_seen_dict.get(domain, ''))
     df = pd.DataFrame(data)
     logging.info(f"成功加载排名数据，共 {len(df)} 个域名，{len(sorted_dates)} 个日期")
     return df

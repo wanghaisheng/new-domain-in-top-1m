@@ -234,9 +234,15 @@ def main():
     else:
         zip_file_path = zip_file_newname
     new_domains_dir = os.path.join(os.getcwd(), "new_domains")
+    new_domains = []
+
     if not os.path.exists(new_domains_dir):
         os.makedirs(new_domains_dir)
         logging.info(f"Created directory for new domains: {new_domains_dir}")
+    else:
+        logging.info(f"Directory for new domains already exists: {new_domains_dir}")
+        new_domains =  open(os.path.join(new_domains_dir, f"{date_str}.txt"), 'r').read().splitlines()
+
     try:
         csv_file_name = "top-1m.csv"
         with zipfile.ZipFile(zip_file_path, 'r') as z:
@@ -245,7 +251,6 @@ def main():
                 data = list(reader)[1:]
         year = int(date_str[:4])
         current_domains = set()
-        new_domains = []
         
         for row in data:
             if len(row) == 2:
@@ -263,6 +268,9 @@ def main():
                         new_domains.append(domain)
                 except Exception as e:
                     logging.warning(f"Row parse error: {row}, {e}")
+        if os.path.exists(zip_file_newname):
+            os.remove(zip_file_newname)
+            logging.info(f"Zip file deleted: {zip_file_newname}")
         # 生成真正新增域名
         if new_domains:
             output_file = os.path.join(new_domains_dir, f"{date_str}.txt")
@@ -270,6 +278,8 @@ def main():
                 for d in new_domains:
                     f.write(d + '\n')
             logging.info(f"新域名已输出到: {output_file}")
+
+
         # 保存到 CSV 备份
         save_domains_to_csv(domains_rankings, domains_first_seen, date_str)
     except Exception as e:

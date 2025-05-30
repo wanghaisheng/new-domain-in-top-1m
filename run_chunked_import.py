@@ -523,32 +523,36 @@ def save_process_history(history):
         logging.error(f"保存处理历史记录失败: {e}")
 # ========== 域名数据持久化 ==========
 BACKUP_DIR = 'domains_rankings_backup'
-BACKUP_SPLIT_SIZE = 1000000
+BACKUP_SPLIT_SIZE = 500000
 def load_domains_from_csv():
+    """
+    加载所有分片的宽表CSV文件和首次出现日期，返回 domains_rankings, domains_first_seen
+    """
     domains_rankings = {}
     domains_first_seen = {}
     if not os.path.exists(BACKUP_DIR):
         logging.warning(f"备份目录不存在: {BACKUP_DIR}")
         return domains_rankings, domains_first_seen
+    # 加载所有分片文件
     for fname in os.listdir(BACKUP_DIR):
-        if fname.startswith('domains_rankings_') and fname.endswith('.csv'):
+        if (fname == 'domains_rankings.csv' or fname.startswith('domains_rankings_part_')) and fname.endswith('.csv'):
             path = os.path.join(BACKUP_DIR, fname)
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     reader = csv.reader(f)
                     header = next(reader)
-                    date_col = header[1] if len(header) > 1 else None
+                    date_cols = header[1:]
                     for row in reader:
-                        if len(row) < 2:
-                            continue
-                        domain, rank = row[0], row[1]
-                        if domain not in domains_rankings:
-                            domains_rankings[domain] = {}
-                        if date_col:
-                            try:
-                                domains_rankings[domain][date_col] = int(rank)
-                            except:
-                                domains_rankings[domain][date_col] = 0
+                        domain = row[0]
+                        for i, date_col in enumerate(date_cols):
+                            if len(row) > i+1:
+                                try:
+                                    rank = int(row[i+1]) if row[i+1] else 0
+                                except:
+                                    rank = 0
+                                if domain not in domains_rankings:
+                                    domains_rankings[domain] = {}
+                                domains_rankings[domain][date_col] = rank
             except Exception as e:
                 logging.error(f"读取备份文件 {fname} 失败: {e}")
     # 加载首次出现日期
@@ -564,7 +568,10 @@ def load_domains_from_csv():
         except Exception as e:
             logging.error(f"读取首次出现日期失败: {e}")
     return domains_rankings, domains_first_seen
-def save_domains_to_csv(domains_rankings, domains_first_seen, date_str):
+def save_domains_to_csv(domains_rankings, domains_first_seen):
+    """
+    保存 domains_rankings 和 domains_first_seen 到宽表分片CSV文件
+    """
     if not os.path.exists(BACKUP_DIR):
         os.makedirs(BACKUP_DIR)
     # 保存 domains_first_seen
@@ -578,19 +585,26 @@ def save_domains_to_csv(domains_rankings, domains_first_seen, date_str):
         logging.info(f"首次出现日期已保存: {first_seen_file}")
     except Exception as e:
         logging.error(f"保存首次出现日期失败: {e}")
-    # 保存 domains_rankings 按分割
+    # 保存 domains_rankings 按宽表分片
     all_domains = list(domains_rankings.keys())
+    all_dates = set()
+    for v in domains_rankings.values():
+        all_dates.update(v.keys())
+    all_dates = sorted(all_dates)
     total = len(all_domains)
-    for i in range(0, total, BACKUP_SPLIT_SIZE):
-        chunk_domains = all_domains[i:i+BACKUP_SPLIT_SIZE]
-        backup_file = os.path.join(BACKUP_DIR, f"domains_rankings_{date_str}_part_{i//BACKUP_SPLIT_SIZE+1}.csv")
+    SPLIT_SIZE = 500000
+    for i in range(0, total, SPLIT_SIZE):
+        chunk_domains = all_domains[i:i+SPLIT_SIZE]
+        backup_file = os.path.join(BACKUP_DIR, f"domains_rankings_part_{i//SPLIT_SIZE+1}.csv")
         try:
             with open(backup_file, 'w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['domain', date_str])
+                writer.writerow(['domain'] + all_dates)
                 for domain in chunk_domains:
-                    rank = domains_rankings[domain].get(date_str, '')
-                    writer.writerow([domain, rank])
+                    row = [domain]
+                    for date in all_dates:
+                        row.append(domains_rankings[domain].get(date, ''))
+                    writer.writerow(row)
             logging.info(f"备份分割文件已保存: {backup_file}")
         except Exception as e:
             logging.error(f"保存分割文件失败: {e}")
@@ -610,16 +624,21 @@ def process_historical_zips_by_commit(start_date=None, end_date=None, repo="adys
     if not os.path.exists("data"):
         os.makedirs("data")
     new_domains_dir = os.path.join(os.getcwd(), "new_domains")
+    new_domains = []
+
     if not os.path.exists(new_domains_dir):
         os.makedirs(new_domains_dir)
+    else:
+        logging.info(f"Directory for new domains already exists: {new_domains_dir}")
+
     for c in commits:
         commit_hash = c['commit_hash']
         date_str = c['date']
-        if commit_hash in processed_commits:
-            logging.info(f"已处理过commit {commit_hash}，跳过")
+        if date_str in processed_commits:
+            logging.info(f"已处理过commit {date_str}，跳过")
             continue
         zip_url = f"https://github.com/adysec/top_1m_domains/raw/{commit_hash}/tranco.zip"
-        zip_file_path = os.path.join("data", f"tranco_{date_str}_{commit_hash[:8]}.zip")
+        zip_file_path = os.path.join("data", f"tranco_{date_str}.zip")
         # 下载zip
         try:
             if not os.path.exists(zip_file_path):
@@ -653,7 +672,6 @@ def process_historical_zips_by_commit(start_date=None, end_date=None, repo="adys
                 with z.open(csv_file_name, 'r') as csvfile:
                     reader = csv.reader(codecs.getreader("utf-8")(csvfile))
                     data = list(reader)[1:]
-            new_domains = []
             current_domains = set()
             for row in data:
                 if len(row) == 2:
@@ -669,17 +687,21 @@ def process_historical_zips_by_commit(start_date=None, end_date=None, repo="adys
                             new_domains.append(domain)
                     except Exception as e:
                         logging.warning(f"Row parse error: {row}, {e}")
+            if os.path.exists(zip_file_path):
+                os.remove(zip_file_path)
+                logging.info(f"已删除zip文件: {zip_file_path}")
+
             # 输出新域名
             if new_domains:
-                output_file = os.path.join(new_domains_dir, f"new_domains_{date_str}.txt")
+                output_file = os.path.join(new_domains_dir, f"{date_str}.txt")
                 with open(output_file, 'w', encoding='utf-8') as f:
                     for d in new_domains:
                         f.write(d + '\n')
                 logging.info(f"新域名已输出到: {output_file}")
             # 保存到CSV备份
-            save_domains_to_csv(domains_rankings, domains_first_seen, date_str)
+            save_domains_to_csv(domains_rankings, domains_first_seen)
             # 记录进度
-            process_history['commits'].append(commit_hash)
+            process_history['commits'].append(date_str)
             save_process_history(process_history)
         except Exception as e:
             logging.error(f"处理commit {commit_hash} 失败: {e}")
