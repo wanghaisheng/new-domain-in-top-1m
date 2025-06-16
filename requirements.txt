@@ -2,6 +2,5 @@ requests
 dotenv
 loguru
 bs4
-zipfile
 pandas
 aiohttp
