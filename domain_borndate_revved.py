@@ -80,9 +80,9 @@ if os.path.exists(PROGRESS_FILE):
 else:
     last_id = 0
 
-df = pd.read_csv(INPUT_CSV)
-domains = df[DOMAIN_COL].tolist()
-total = len(domains)
+# df = pd.read_csv(INPUT_CSV)
+# domains = df[DOMAIN_COL].tolist()
+# total = len(domains)
 
 async def fetch_borndate(domain, session):
     for attempt in range(1, RETRY+1):
@@ -138,4 +138,4 @@ def process_domains():
         result_file = os.path.join(result_dir, f"{date_str}.csv")
         pd.DataFrame(all_results, columns=['domain', 'borndate']).to_csv(result_file, index=False)
         logging.info(f"已保存结果到 {result_file}")
-
+process_domains()
