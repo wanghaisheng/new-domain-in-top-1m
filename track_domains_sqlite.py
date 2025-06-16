@@ -241,7 +241,10 @@ def main():
         logging.info(f"Created directory for new domains: {new_domains_dir}")
     else:
         logging.info(f"Directory for new domains already exists: {new_domains_dir}")
-        new_domains =  open(os.path.join(new_domains_dir, f"{date_str}.txt"), 'r').read().splitlines()
+        newdomainpath= os.path.join(new_domains_dir, f"{date_str}.txt")
+        if  os.path.exists(newdomainpath):
+            
+            new_domains =  open(newdomainpath    , 'r').read().splitlines()
 
     try:
         csv_file_name = "top-1m.csv"
