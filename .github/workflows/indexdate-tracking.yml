@@ -34,4 +34,4 @@ jobs:
           git config --local user.name "GitHub Action"
           git add -A
           git commit -m "Update new domain borndate results $(date +'%Y-%m-%d')" || exit 0
-          git pushname: new Domain born date daily Tracker
+          git push
