@@ -13,6 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 BACKUP_DIR = 'domains_rankings_backup'
 BACKUP_SPLIT_SIZE = 500000
 PROCESS_HISTORY_FILE = os.path.join('data', 'process_history.json')
+new_domains_dir = os.path.join('./', "new_domains")
 
 # ========== 处理历史记录 ==========
 def load_process_history():
@@ -233,7 +234,6 @@ def main():
             logging.error(f"重命名tranco.zip失败: {e}")
     else:
         zip_file_path = zip_file_newname
-    new_domains_dir = os.path.join(os.getcwd(), "new_domains")
     new_domains = []
 
     if not os.path.exists(new_domains_dir):
