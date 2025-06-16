@@ -6,56 +6,60 @@ from file_utils import ensure_dir_exists, write_lines, read_lines
 from data_utils import cleandomain
 from html_utils import extract_indexdate_from_google_html
 from aiohttp import ClientSession
+import glob
+import logging
 
-BATCH_SIZE = 10000
+BATCH_SIZE = 1000
 PROGRESS_FILE = 'indexdate_progress.txt'
-RESULT_DIR = './results/indexdate/'
-ensure_dir_exists(RESULT_DIR)
+RESULT_DIR = './results_indexdate'
+LOG_FILE = 'indexdate.log'
+NEW_DOMAINS_DIR = './new_domains'
 
-INPUT_CSV = os.getenv('filename', 'domains.csv')
-COLNAME = os.getenv('colname', 'domain')
+ensure_dir_exists(RESULT_DIR)
 
 async def fetch_indexdate(session, domain):
     url = f"https://www.google.com/search?q=About+{domain}&tbm=ilp"
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; indexdate-bot/1.0)"}
     try:
-        async with session.get(url, timeout=15) as resp:
+        async with session.get(url, timeout=15, headers=headers) as resp:
             html = await resp.text()
             return extract_indexdate_from_google_html(html)
     except Exception as e:
+        logging.warning(f"Error fetching {domain}: {e}")
         return ''
 
-def get_last_progress():
-    if os.path.exists(PROGRESS_FILE):
-        try:
-            return int(open(PROGRESS_FILE).read().strip())
-        except:
-            return 0
-    return 0
-
-def save_progress(idx):
-    with open(PROGRESS_FILE, 'w') as f:
-        f.write(str(idx))
-
-async def main():
-    df = pd.read_csv(INPUT_CSV)
-    domains = df[COLNAME].tolist()
-    start_idx = get_last_progress()
-    total = len(domains)
-    print(f"Total domains: {total}, start from: {start_idx}")
-    batch = []
+async def process_batch(batch_domains):
     results = []
     async with ClientSession() as session:
-        for idx in range(start_idx, total):
-            domain = cleandomain(domains[idx])
-            indexdate = await fetch_indexdate(session, domain)
-            results.append({'id': idx, 'domain': domain, 'indexdate': indexdate})
-            if (idx + 1) % BATCH_SIZE == 0 or idx == total - 1:
-                batch_no = (idx + 1) // BATCH_SIZE
-                out_csv = os.path.join(RESULT_DIR, f'batch_{batch_no}.csv')
-                pd.DataFrame(results).to_csv(out_csv, index=False)
-                save_progress(idx + 1)
-                print(f"Saved batch {batch_no} at idx {idx + 1}")
-                results = []
+        tasks = [fetch_indexdate(session, d) for d in batch_domains]
+        responses = await asyncio.gather(*tasks)
+        for domain, indexdate in zip(batch_domains, responses):
+            results.append((domain, indexdate))
+    return results
+
+def process_domains():
+    txt_files = glob.glob(os.path.join(NEW_DOMAINS_DIR, "*.txt"))
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    for txt_file in txt_files:
+        if date_str != os.path.splitext(os.path.basename(txt_file))[0]:
+            continue
+
+        with open(txt_file, 'r', encoding='utf-8') as f:
+            domains = [cleandomain(line.strip()) for line in f if line.strip()]
+        if not domains:
+            continue
+
+        logging.info(f"Processing {txt_file}, total {len(domains)} domains")
+        all_results = []
+        for batch_start in range(0, len(domains), BATCH_SIZE):
+            batch_domains = domains[batch_start:batch_start+BATCH_SIZE]
+            batch_results = asyncio.run(process_batch(batch_domains))
+            all_results.extend(batch_results)
+
+        result_file = os.path.join(RESULT_DIR, f"{date_str}.csv")
+        pd.DataFrame(all_results, columns=['domain', 'indexdate']).to_csv(result_file, index=False)
+        logging.info(f"Saved results to {result_file}")
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
+    process_domains()
