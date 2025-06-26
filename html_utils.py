@@ -4,6 +4,60 @@ from typing import List
 import json
 import requests
 
+def extract_about_page_data(html: str, domain: str) -> dict:
+    """
+    从 Google 搜索结果页面（如“About the source”页面）提取以下字段：
+    - domain: 域名
+    - indexdate: 首次被 Google 索引的时间（如“22 years ago”）
+    - Aboutthesource: 来源描述段（"About the source" 之后，"In their own words" 之前）
+    - Intheirownwords: 来源自述段（"In their own words" 之后）
+    
+    若未找到则对应字段为 ''。
+    """
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        elements = soup.find_all(lambda tag: "Site first indexed by Google" in tag.get_text())
+
+        data1 = ""
+        data2 = ""
+        date = ""
+
+        if elements:
+            full_text = elements[0].get_text()
+
+            # 提取描述字段
+            if "Web results about the source" in full_text:
+                block = full_text.split("Web results about the source")[0]
+                if "About the source" in block:
+                    block = block.split("About the source")[-1]
+                    if "In their own words" in block:
+                        data1 = block.split("In their own words")[0].strip()
+                        data2 = block.split("In their own words")[-1].strip()
+
+            # 提取索引时间字段
+            if "Site first indexed by Google" in full_text:
+                parts = full_text.split("Site first indexed by Google")
+                date = parts[-1].strip()
+                if date and not date.endswith("ago"):
+                    date = date.split("ago")[0].strip() + " ago"
+
+        return {
+            "domain": domain,
+            "indexdate": date,
+            "Aboutthesource": data1,
+            "Intheirownwords": data2
+        }
+
+    except Exception as e:
+        return {
+            "domain": domain,
+            "indexdate": "",
+            "Aboutthesource": "",
+            "Intheirownwords": "",
+            "error": str(e)
+        }
+
+
 def get_title_from_html(html: str) -> str:
     try:
         title_pattern = r'<title>(.*?)</title>'
