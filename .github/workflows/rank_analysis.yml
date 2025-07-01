@@ -35,10 +35,10 @@ jobs:
           # 根据日期决定运行哪种报告
           if [ "$DAY_OF_MONTH" = "01" ]; then
             echo "执行月度分析报告"
-            python rank_change_analyzer.py --period monthly
+            python rank_change_analyzer.py --period month
           elif [ "$DAY_OF_WEEK" = "1" ]; then
             echo "执行周度分析报告"
-            python rank_change_analyzer.py --period weekly
+            python rank_change_analyzer.py --period week
           else
             echo "今天不是计划的报告日期，跳过执行"
             exit 0
