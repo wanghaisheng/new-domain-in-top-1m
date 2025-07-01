@@ -156,7 +156,7 @@ def calculate_rank_changes(df, start_date, end_date):
     result['change_percent'] = result.apply(calculate_percent, axis=1)
     return result
 
-def generate_report(changes_df, period_type, start_date, end_date):
+def generate_report_top100(changes_df, period_type, start_date, end_date):
     """生成报告"""
     if changes_df is None or len(changes_df) == 0:
         logging.error("没有数据可生成报告")
@@ -196,6 +196,65 @@ def generate_report(changes_df, period_type, start_date, end_date):
         logging.info(f"已保存所有报告到 {REPORT_DIR}")
     except Exception as e:
         logging.error(f"保存报告失败: {e}")
+def generate_report(changes_df, period_type, start_date, end_date):
+    """生成报告"""
+    if changes_df is None or len(changes_df) == 0:
+        logging.error("没有数据可生成报告")
+        return
+
+    ensure_report_dir()
+    timestamp = datetime.now().strftime('%Y%m%d')
+    period_name = "周报" if period_type == 'week' else "月报"
+
+    # 所有变化（不为0）
+    meaningful_changes = changes_df[changes_df['rank_change'] != 0].copy()
+    meaningful_changes['abs_change'] = meaningful_changes['rank_change'].abs()
+    sorted_changes = meaningful_changes.sort_values('abs_change', ascending=False)
+
+    # 保存完整数据
+    full_file = os.path.join(REPORT_DIR, f"完整排名变化_{period_name}_{timestamp}.csv")
+    sorted_changes[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+        full_file, index=False, encoding='utf-8'
+    )
+    logging.info(f"保存完整排名变化文件：{full_file}")
+
+    # 分区保存文件
+    ranges = [(0, 100), (100, 500), (500, 1000)]
+    for r_start, r_end in ranges:
+        sub_df = sorted_changes.iloc[r_start:r_end]
+        if not sub_df.empty:
+            filename = f"排名变化_{period_name}_{timestamp}_{r_start}_{r_end}.csv"
+            sub_file = os.path.join(REPORT_DIR, filename)
+            sub_df[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+                sub_file, index=False, encoding='utf-8'
+            )
+            logging.info(f"保存排名变化区间文件：{sub_file}")
+
+    # 超过1000的部分
+    if len(sorted_changes) > 1000:
+        extra_df = sorted_changes.iloc[1000:]
+        filename = f"排名变化_{period_name}_{timestamp}_1000_plus.csv"
+        extra_file = os.path.join(REPORT_DIR, filename)
+        extra_df[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+            extra_file, index=False, encoding='utf-8'
+        )
+        logging.info(f"保存排名变化1000+文件：{extra_file}")
+
+    # 保留原 Top 50 上升/下降 + 图表
+    rising_domains = changes_df[changes_df['rank_change'] > 0].sort_values('rank_change', ascending=False).head(50)
+    falling_domains = changes_df[changes_df['rank_change'] < 0].sort_values('rank_change', ascending=True).head(50)
+
+    rising_file = os.path.join(REPORT_DIR, f"排名上升域名{period_name}_{timestamp}.csv")
+    falling_file = os.path.join(REPORT_DIR, f"排名下降域名{period_name}_{timestamp}.csv")
+
+    rising_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+        rising_file, index=False, encoding='utf-8'
+    )
+    falling_domains[['domain', 'start_rank', 'end_rank', 'rank_change', 'change_percent']].to_csv(
+        falling_file, index=False, encoding='utf-8'
+    )
+
+    generate_visualization(rising_domains, falling_domains, period_type, timestamp)
 
 def generate_visualization(rising_domains, falling_domains, period_type, timestamp):
     """生成可视化图表"""
