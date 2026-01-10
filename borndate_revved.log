@@ -326,3 +326,14 @@
 2026-01-09 00:31:51,050 INFO: tulsapromenade.com | borndate: 2001-10-30T18:16:04Z
 2026-01-09 00:31:51,053 INFO: changaotrade.com | borndate: 2016-09-20T22:33:12Z
 2026-01-09 00:31:51,453 INFO: 已保存结果到 ./borndate_results/2026-01-09.csv, 失败 0 个
+2026-01-10 00:31:10,748 INFO: 处理 new_domains/2026-01-10.txt，共 2183 个域名
+2026-01-10 00:31:10,951 INFO: nitroquest.com | borndate: 2004-07-09T23:42:49Z
+2026-01-10 00:31:10,951 INFO: off-road-service.ru | borndate: 2009-06-21T20:00:00Z
+2026-01-10 00:31:10,951 INFO: iranglobal.info | borndate: 2007-04-12T07:17:36Z
+2026-01-10 00:31:10,952 INFO: leihaiwei.com | borndate: 2018-04-05T13:38:26Z
+2026-01-10 00:31:10,952 INFO: parachutedesign.ca | borndate: 2008-10-31T16:53:40Z
+2026-01-10 00:31:10,952 INFO: viessmann.com.pl | borndate: 2000-04-27T13:00:00Z
+2026-01-10 00:31:11,019 INFO: wohuia.com | borndate: 2018-08-13T18:08:24Z
+2026-01-10 00:31:11,019 INFO: maizena.cl | borndate: 2002-12-16T23:32:12Z
+2026-01-10 00:31:11,023 INFO: cheatvault.net | borndate: 2024-04-26T20:20:11Z
+2026-01-10 00:31:11,895 INFO: 已保存结果到 ./borndate_results/2026-01-10.csv, 失败 0 个
