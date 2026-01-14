@@ -418,3 +418,9 @@
 2026-01-13 00:28:10,053 INFO: 123lazienka.pl | borndate: 2008-11-16T17:36:18Z
 2026-01-13 00:28:10,054 INFO: winedecider.com | borndate: 2004-09-01T12:40:49Z
 2026-01-13 00:28:10,829 INFO: 已保存结果到 ./borndate_results/2026-01-13.csv, 失败 0 个
+2026-01-14 00:32:50,052 INFO: 处理 new_domains/2026-01-14.txt，共 2518 个域名
+2026-01-14 00:32:50,336 INFO: ozoviral.xyz | borndate: 2024-09-11T18:33:29Z
+2026-01-14 00:32:51,042 INFO: comicplaycasino.net | borndate: 2024-01-27T00:00:00Z
+2026-01-14 00:32:51,092 INFO: bt8.me | borndate: 2024-09-03T20:03:27Z
+2026-01-14 00:32:51,092 INFO: laaldaba.co | borndate: 2010-09-27T21:46:23Z
+2026-01-14 00:32:51,951 INFO: 已保存结果到 ./borndate_results/2026-01-14.csv, 失败 0 个
