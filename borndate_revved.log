@@ -445,3 +445,22 @@
 2026-01-15 00:29:38,024 INFO: deltastaffing.ca | borndate: 2016-09-21T16:37:43Z
 2026-01-15 00:29:38,025 INFO: mowerpower.co.uk | borndate: 1999-10-12T00:00:00Z
 2026-01-15 00:29:38,155 INFO: 已保存结果到 ./borndate_results/2026-01-15.csv, 失败 0 个
+2026-01-16 00:32:35,327 INFO: 处理 new_domains/2026-01-16.txt，共 3313 个域名
+2026-01-16 00:32:35,636 INFO: aestheticpoznan.pl | borndate: 2024-10-17T16:10:56Z
+2026-01-16 00:32:35,639 INFO: sesastra.com | borndate: 2004-08-15T00:00:00Z
+2026-01-16 00:32:35,639 INFO: montehost.com | borndate: 2005-12-14T10:15:04Z
+2026-01-16 00:32:35,639 INFO: goldensoil.in | borndate: 2024-07-16T08:36:23Z
+2026-01-16 00:32:35,639 INFO: ses-astra.net | borndate: 2002-07-25T00:00:00Z
+2026-01-16 00:32:36,020 INFO: maheshvidyabhavan.in | borndate: 2014-09-20T08:37:48Z
+2026-01-16 00:32:36,023 INFO: materaunescochair.it | borndate: 2019-10-30T13:25:42Z
+2026-01-16 00:32:36,024 INFO: loukashop.cz | borndate: 2023-09-13T22:01:04Z
+2026-01-16 00:32:36,024 INFO: malenaparis.fr | borndate: 2020-10-08T14:16:02Z
+2026-01-16 00:32:36,025 INFO: mdcgzb.in | borndate: 2016-09-16T14:10:13Z
+2026-01-16 00:32:36,025 INFO: medisky.in | borndate: 2022-09-20T06:10:38Z
+2026-01-16 00:32:37,019 INFO: sibanet.com.tr | borndate: 2015-08-18T00:00:00Z
+2026-01-16 00:32:37,020 INFO: cqhjch.com | borndate: 2017-04-17T09:45:31Z
+2026-01-16 00:32:37,021 INFO: gira.live | borndate: 2021-03-09T09:07:14Z
+2026-01-16 00:32:37,021 INFO: crazyninjaodds.com | borndate: 2022-06-14T16:12:50Z
+2026-01-16 00:32:37,022 INFO: charak.com | borndate: 1997-05-07T04:00:00Z
+2026-01-16 00:32:37,023 INFO: blizzless.info | borndate: 2024-12-28T14:56:54Z
+2026-01-16 00:32:37,586 INFO: 已保存结果到 ./borndate_results/2026-01-16.csv, 失败 0 个
