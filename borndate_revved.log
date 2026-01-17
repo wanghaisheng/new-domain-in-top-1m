@@ -464,3 +464,16 @@
 2026-01-16 00:32:37,022 INFO: charak.com | borndate: 1997-05-07T04:00:00Z
 2026-01-16 00:32:37,023 INFO: blizzless.info | borndate: 2024-12-28T14:56:54Z
 2026-01-16 00:32:37,586 INFO: 已保存结果到 ./borndate_results/2026-01-16.csv, 失败 0 个
+2026-01-17 00:30:41,902 INFO: 处理 new_domains/2026-01-17.txt，共 2518 个域名
+2026-01-17 00:30:42,190 INFO: infectex.ru | borndate: 2021-06-29T14:06:01Z
+2026-01-17 00:30:42,193 INFO: shahed4u.media | borndate: 2024-06-12T04:50:43Z
+2026-01-17 00:30:42,193 INFO: rdmarketplace.com.br | borndate: 2021-02-01T00:00:00Z
+2026-01-17 00:30:42,193 INFO: gardenjoygame.com | borndate: 2022-01-27T01:37:53Z
+2026-01-17 00:30:43,019 INFO: saintsorlindarves.com | borndate: 1998-09-23T04:00:00Z
+2026-01-17 00:30:43,019 INFO: bvhd.app | borndate: 2023-05-27T23:27:26Z
+2026-01-17 00:30:43,021 INFO: comhotelmix.co.uk | borndate: 2024-06-04T00:00:00Z
+2026-01-17 00:30:43,022 INFO: 3dheartmodeling.com | borndate: 2017-07-26T16:47:25Z
+2026-01-17 00:30:43,024 INFO: metricscat.com | borndate: 2013-03-02T12:45:38Z
+2026-01-17 00:30:43,026 INFO: benacct.com | borndate: 2023-10-26T11:08:51Z
+2026-01-17 00:30:43,026 INFO: skarpt-dns.com | borndate: 2018-09-01T22:04:56Z
+2026-01-17 00:30:43,617 INFO: 已保存结果到 ./borndate_results/2026-01-17.csv, 失败 0 个
