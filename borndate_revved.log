@@ -477,3 +477,25 @@
 2026-01-17 00:30:43,026 INFO: benacct.com | borndate: 2023-10-26T11:08:51Z
 2026-01-17 00:30:43,026 INFO: skarpt-dns.com | borndate: 2018-09-01T22:04:56Z
 2026-01-17 00:30:43,617 INFO: 已保存结果到 ./borndate_results/2026-01-17.csv, 失败 0 个
+2026-01-18 00:34:32,812 INFO: 处理 new_domains/2026-01-18.txt，共 2188 个域名
+2026-01-18 00:34:33,141 INFO: misha-lomonosov.com | borndate: 2025-01-11T14:16:44Z
+2026-01-18 00:34:33,141 INFO: off45.ru | borndate: 2024-06-06T08:34:18Z
+2026-01-18 00:34:33,141 INFO: bilim-academy.kz | borndate: 2024-09-19T00:00:00Z
+2026-01-18 00:34:33,159 INFO: itsartsafrica.co.za | borndate: 2020-11-09T09:35:30Z
+2026-01-18 00:34:33,159 INFO: lpclibya.com | borndate: 2005-11-29T04:00:00Z
+2026-01-18 00:34:33,160 INFO: 4499.com | borndate: 2004-02-20T19:20:29Z
+2026-01-18 00:34:33,160 INFO: 07.cc | borndate: 1997-10-13T04:00:00Z
+2026-01-18 00:34:33,161 INFO: aiye.la | borndate: 2024-10-26T13:35:36Z
+2026-01-18 00:34:34,018 INFO: filmnoir.app | borndate: 2018-06-04T08:37:34Z
+2026-01-18 00:34:34,019 INFO: yihisxmini.ru | borndate: 2022-03-01T13:27:03Z
+2026-01-18 00:34:34,020 INFO: telegram.sx | borndate: 2019-07-21T00:35:40Z
+2026-01-18 00:34:34,022 INFO: ruedelacourse.com | borndate: 2014-07-08T14:25:32Z
+2026-01-18 00:34:34,022 INFO: lichfield-cathedral.org | borndate: 1997-07-21T04:00:00Z
+2026-01-18 00:34:34,022 INFO: racc.cat | borndate: 2006-02-24T22:26:21Z
+2026-01-18 00:34:34,024 INFO: buylikesservices.com | borndate: 2014-12-28T07:45:19Z
+2026-01-18 00:34:34,025 INFO: zapztv.com | borndate: 2021-01-01T20:08:38Z
+2026-01-18 00:34:34,026 INFO: dee-okinawa.com | borndate: 2010-01-27T01:22:41Z
+2026-01-18 00:34:34,026 INFO: rezolved.net | borndate: 2010-03-22T13:11:42Z
+2026-01-18 00:34:34,026 INFO: thelincolnianonline.com | borndate: 2015-12-09T19:20:55Z
+2026-01-18 00:34:34,027 INFO: shetab.host | borndate: 2016-02-20T14:22:17Z
+2026-01-18 00:34:34,506 INFO: 已保存结果到 ./borndate_results/2026-01-18.csv, 失败 0 个
