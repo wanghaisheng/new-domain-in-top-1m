@@ -515,3 +515,16 @@
 2026-01-19 00:34:28,284 INFO: mukhyamantrimahilasamman.com | borndate: 2025-01-11T04:38:21Z
 2026-01-19 00:34:28,286 INFO: mlrail.com | borndate: 2004-10-03T01:33:23Z
 2026-01-19 00:34:31,375 INFO: 已保存结果到 ./borndate_results/2026-01-19.csv, 失败 0 个
+2026-01-20 00:31:15,337 INFO: 处理 new_domains/2026-01-20.txt，共 3911 个域名
+2026-01-20 00:31:15,641 INFO: ecosysmail.com | borndate: 2015-08-26T07:43:13Z
+2026-01-20 00:31:15,641 INFO: d4serv01.nl | borndate: 2006-03-14T00:00:00Z
+2026-01-20 00:31:15,650 INFO: showerbait.com | borndate: 2016-06-08T20:52:09Z
+2026-01-20 00:31:15,651 INFO: tiltonbots.com | borndate: 2021-11-05T00:47:21Z
+2026-01-20 00:31:15,651 INFO: hornyteenlovers.com | borndate: 2024-01-28T07:00:00Z
+2026-01-20 00:31:15,651 INFO: stg-mos.ru | borndate: 2020-04-13T09:03:04Z
+2026-01-20 00:31:15,651 INFO: nameserve.wtf | borndate: 2022-03-27T00:49:38Z
+2026-01-20 00:31:15,651 INFO: websolvent.net | borndate: 2009-02-18T07:00:00Z
+2026-01-20 00:31:16,014 INFO: palashtraders.in | borndate: 2022-09-28T05:35:05Z
+2026-01-20 00:31:16,014 INFO: nikkyconsultant.in | borndate: 2023-09-29T10:16:42Z
+2026-01-20 00:31:16,019 INFO: nonnamaria.it | borndate: 2006-09-29T00:00:00Z
+2026-01-20 00:31:16,862 INFO: 已保存结果到 ./borndate_results/2026-01-20.csv, 失败 0 个
