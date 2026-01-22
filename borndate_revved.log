@@ -548,3 +548,13 @@
 2026-01-21 00:32:56,023 INFO: thesuccesso.com | borndate: 2022-01-12T23:27:54Z
 2026-01-21 00:32:56,024 INFO: tk509.com | borndate: 2022-12-26T07:00:00Z
 2026-01-21 00:32:56,691 INFO: 已保存结果到 ./borndate_results/2026-01-21.csv, 失败 0 个
+2026-01-22 00:34:04,204 INFO: 处理 new_domains/2026-01-22.txt，共 2356 个域名
+2026-01-22 00:34:04,551 INFO: fishfight.net | borndate: 2010-11-11T17:45:10Z
+2026-01-22 00:34:04,551 INFO: nayraelsheikh.com | borndate: 2020-07-08T11:29:39Z
+2026-01-22 00:34:04,551 INFO: cloudekyc.net | borndate: 2019-07-30T09:38:51Z
+2026-01-22 00:34:05,032 INFO: momentsanmemories.co.uk | borndate: 2024-06-07T00:00:00Z
+2026-01-22 00:34:05,035 INFO: holy.com | borndate: 1997-05-21T00:00:00Z
+2026-01-22 00:34:05,045 INFO: alqualonde.org | borndate: 2003-09-08T06:36:27Z
+2026-01-22 00:34:05,046 INFO: spotontennessee.com | borndate: 2018-12-24T11:37:44Z
+2026-01-22 00:34:05,046 INFO: pn-tabanan.go.id | borndate: 2013-02-13T13:35:19Z
+2026-01-22 00:34:05,973 INFO: 已保存结果到 ./borndate_results/2026-01-22.csv, 失败 0 个
