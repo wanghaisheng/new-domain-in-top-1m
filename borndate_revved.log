@@ -558,3 +558,21 @@
 2026-01-22 00:34:05,046 INFO: spotontennessee.com | borndate: 2018-12-24T11:37:44Z
 2026-01-22 00:34:05,046 INFO: pn-tabanan.go.id | borndate: 2013-02-13T13:35:19Z
 2026-01-22 00:34:05,973 INFO: 已保存结果到 ./borndate_results/2026-01-22.csv, 失败 0 个
+2026-01-23 00:32:50,042 INFO: 处理 new_domains/2026-01-23.txt，共 5429 个域名
+2026-01-23 00:32:50,444 INFO: enbox.net | borndate: 2020-07-24T18:29:15Z
+2026-01-23 00:32:50,445 INFO: dietforlife.com | borndate: 1998-02-11T00:00:00Z
+2026-01-23 00:32:50,445 INFO: cemeruplanosdesaude.com.br | borndate: 2019-01-29T00:00:00Z
+2026-01-23 00:32:50,499 INFO: milliygvardiya.uz | borndate: 2018-04-19T00:00:00Z
+2026-01-23 00:32:50,507 INFO: aljil-app.com | borndate: 2024-04-16T01:37:43Z
+2026-01-23 00:32:51,052 INFO: norwichbowling.com | borndate: 2006-08-31T11:31:50Z
+2026-01-23 00:32:51,054 INFO: vietteledu.com | borndate: 2018-11-18T23:36:51Z
+2026-01-23 00:32:52,050 INFO: diocesisdecaguaspr.org | borndate: 2024-04-26T07:44:18Z
+2026-01-23 00:32:52,051 INFO: iranhost24.com | borndate: 2014-04-12T21:04:40Z
+2026-01-23 00:32:52,051 INFO: latestalisonangel.com | borndate: 2017-02-13T19:02:13Z
+2026-01-23 00:32:53,070 INFO: algolab.com.tr | borndate: 2017-03-28T00:00:00Z
+2026-01-23 00:32:53,070 INFO: cruiseservers.com | borndate: 2022-02-23T17:25:12Z
+2026-01-23 00:32:53,070 INFO: bancagenerali.com | borndate: 1999-12-21T15:17:25Z
+2026-01-23 00:32:53,070 INFO: 20qb.com | borndate: 2022-07-16T05:13:35Z
+2026-01-23 00:32:53,070 INFO: nekos.dev | borndate: 2019-02-28T16:14:53Z
+2026-01-23 00:32:53,070 INFO: zibakade.com | borndate: 2012-02-14T09:10:43Z
+2026-01-23 00:32:56,634 INFO: 已保存结果到 ./borndate_results/2026-01-23.csv, 失败 0 个
