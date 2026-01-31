@@ -809,3 +809,33 @@
 2026-01-30 00:37:23,149 INFO: auto3p.com | borndate: 2000-04-16T09:28:38Z
 2026-01-30 00:37:23,150 INFO: attire.jp | borndate: 2020-10-23T00:00:00Z
 2026-01-30 00:37:23,636 INFO: 已保存结果到 ./borndate_results/2026-01-30.csv, 失败 0 个
+2026-01-31 00:36:14,308 INFO: 处理 new_domains/2026-01-31.txt，共 12784 个域名
+2026-01-31 00:36:14,667 INFO: gct.by | borndate: 2023-07-25T00:00:00Z
+2026-01-31 00:36:14,742 INFO: ecoshiftconsulting.com | borndate: 2008-10-20T19:24:01Z
+2026-01-31 00:36:14,798 INFO: arendaoptom.ru | borndate: 2021-05-28T14:01:24Z
+2026-01-31 00:36:14,802 INFO: t-mobile.hu | borndate: 2001-09-18T03:01:25Z
+2026-01-31 00:36:14,804 INFO: saltoapis.com | borndate: 2019-10-25T13:53:45Z
+2026-01-31 00:36:14,804 INFO: rechta-yaya.fr | borndate: 2020-11-01T21:43:44Z
+2026-01-31 00:36:14,806 INFO: mediya.net | borndate: 2003-12-09T00:00:00Z
+2026-01-31 00:36:15,052 INFO: nemo.aero | borndate: 2013-08-15T06:44:13Z
+2026-01-31 00:36:15,063 INFO: foreningssparbanken.se | borndate: 1997-11-07T00:00:00Z
+2026-01-31 00:36:15,066 INFO: inconnect.app | borndate: 2023-06-04T02:38:43Z
+2026-01-31 00:36:15,099 INFO: wellfirsthealth.com | borndate: 2006-01-19T02:42:12Z
+2026-01-31 00:36:16,063 INFO: webspires.net | borndate: 2002-12-19T04:24:11Z
+2026-01-31 00:36:16,071 INFO: tier4.kiev.ua | borndate: 2010-07-06T12:25:23Z
+2026-01-31 00:36:16,072 INFO: clasicoch.com.my | borndate: 2024-10-11T04:27:17Z
+2026-01-31 00:36:16,083 INFO: edicolaradetzky.com | borndate: 2021-10-26T00:00:00Z
+2026-01-31 00:36:16,089 INFO: totalcomposition.com | borndate: 2013-08-24T04:00:00Z
+2026-01-31 00:36:17,046 INFO: educaciontuc.gob.ar | borndate: 2006-03-15T00:00:00Z
+2026-01-31 00:36:17,047 INFO: educanet.pro | borndate: 2016-01-21T10:43:26Z
+2026-01-31 00:36:17,049 INFO: eduil.net | borndate: 2017-11-13T08:22:37Z
+2026-01-31 00:36:17,050 INFO: educatenotrevocate.com | borndate: 2022-08-21T10:46:08Z
+2026-01-31 00:36:17,053 INFO: eduvera.org | borndate: 2022-10-07T10:49:23Z
+2026-01-31 00:36:17,055 INFO: edumubee.com.ng | borndate: 2024-11-24T13:34:24Z
+2026-01-31 00:36:17,056 INFO: efsanedersler.com | borndate: 2024-08-20T19:22:04Z
+2026-01-31 00:36:17,056 INFO: edutech-erp.com | borndate: 2023-10-06T17:01:12Z
+2026-01-31 00:36:17,057 INFO: efootresource.store | borndate: 2024-10-30T17:48:32Z
+2026-01-31 00:36:17,058 INFO: egac.com.tw | borndate: 2001-02-20T17:27:28Z
+2026-01-31 00:36:17,058 INFO: egastronom.ua | borndate: 2023-09-06T20:19:28Z
+2026-01-31 00:36:17,059 INFO: eebet.com | borndate: 2019-02-19T14:45:31Z
+2026-01-31 00:36:29,954 INFO: 已保存结果到 ./borndate_results/2026-01-31.csv, 失败 0 个
