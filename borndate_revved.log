@@ -839,3 +839,24 @@
 2026-01-31 00:36:17,058 INFO: egastronom.ua | borndate: 2023-09-06T20:19:28Z
 2026-01-31 00:36:17,059 INFO: eebet.com | borndate: 2019-02-19T14:45:31Z
 2026-01-31 00:36:29,954 INFO: 已保存结果到 ./borndate_results/2026-01-31.csv, 失败 0 个
+2026-02-01 00:44:37,331 INFO: 处理 new_domains/2026-02-01.txt，共 3908 个域名
+2026-02-01 00:44:37,610 INFO: myzs.com | borndate: 2008-08-16T18:55:25Z
+2026-02-01 00:44:37,648 INFO: cie-exuvie.fr | borndate: 2023-02-07T19:18:11Z
+2026-02-01 00:44:37,648 INFO: surfly-s3.com | borndate: 2015-07-01T10:21:14Z
+2026-02-01 00:44:37,648 INFO: presidiomedia.com | borndate: 2007-04-04T22:17:49Z
+2026-02-01 00:44:37,648 INFO: ilex.fr | borndate: 1999-02-11T23:00:00Z
+2026-02-01 00:44:37,688 INFO: frp.pl | borndate: 2001-09-01T13:00:00Z
+2026-02-01 00:44:37,688 INFO: helimountains.ru | borndate: 2015-12-09T15:00:10Z
+2026-02-01 00:44:37,688 INFO: iva.partners | borndate: 2022-06-02T16:13:22Z
+2026-02-01 00:44:38,018 INFO: plzpapa.com | borndate: 2022-11-13T11:30:19Z
+2026-02-01 00:44:38,018 INFO: cenitinc.com | borndate: 2015-05-05T13:56:05Z
+2026-02-01 00:44:38,021 INFO: cheaphostingchoice.com | borndate: 2008-10-17T23:09:37Z
+2026-02-01 00:44:38,022 INFO: pornweek.pro | borndate: 2021-10-06T17:34:16Z
+2026-02-01 00:44:38,022 INFO: scynexis.com | borndate: 2000-01-14T22:10:39Z
+2026-02-01 00:44:38,023 INFO: 108cun.com | borndate: 2009-05-26T02:09:03Z
+2026-02-01 00:44:38,027 INFO: ballzaa.live | borndate: 2024-07-26T17:00:07Z
+2026-02-01 00:44:38,030 INFO: ucaaug.org | borndate: 2018-06-04T09:14:19Z
+2026-02-01 00:44:38,030 INFO: sunplan-co.jp | borndate: 2015-03-18T00:00:00Z
+2026-02-01 00:44:38,032 INFO: sj131.net | borndate: 2024-11-13T13:10:13Z
+2026-02-01 00:44:38,033 INFO: xlinternational.net | borndate: 2003-01-10T17:21:23Z
+2026-02-01 00:44:38,851 INFO: 已保存结果到 ./borndate_results/2026-02-01.csv, 失败 0 个
