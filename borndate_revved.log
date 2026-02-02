@@ -860,3 +860,29 @@
 2026-02-01 00:44:38,032 INFO: sj131.net | borndate: 2024-11-13T13:10:13Z
 2026-02-01 00:44:38,033 INFO: xlinternational.net | borndate: 2003-01-10T17:21:23Z
 2026-02-01 00:44:38,851 INFO: 已保存结果到 ./borndate_results/2026-02-01.csv, 失败 0 个
+2026-02-02 00:39:57,166 INFO: 处理 new_domains/2026-02-02.txt，共 3115 个域名
+2026-02-02 00:39:57,456 INFO: liveyoungmrmen.co.uk | borndate: 2014-06-05T00:00:00Z
+2026-02-02 00:39:57,495 INFO: 002328.cn | borndate: 2022-11-08T14:32:00Z
+2026-02-02 00:39:57,495 INFO: gosim-no.ru | borndate: 2018-12-03T08:06:49Z
+2026-02-02 00:39:57,498 INFO: kiwa.fi | borndate: 2009-01-05T00:00:00Z
+2026-02-02 00:39:58,088 INFO: kitlavoro.it | borndate: 2013-07-17T21:01:18Z
+2026-02-02 00:39:58,131 INFO: sjsbeautycorner.com | borndate: 2018-08-09T16:29:27Z
+2026-02-02 00:39:58,132 INFO: dogtraininguide.com | borndate: 2023-12-18T19:04:35Z
+2026-02-02 00:39:58,134 INFO: fantasygames-southbend.com | borndate: 2002-01-31T18:28:53Z
+2026-02-02 00:39:58,134 INFO: kotor-hotelportoin.com | borndate: 2015-08-13T06:12:04Z
+2026-02-02 00:39:58,134 INFO: muyushu.com | borndate: 2021-05-17T07:00:00Z
+2026-02-02 00:39:58,134 INFO: inetum.ar | borndate: 2020-09-22T00:00:00Z
+2026-02-02 00:39:59,190 INFO: frokeninvestera.se | borndate: 2019-06-13T00:00:00Z
+2026-02-02 00:39:59,190 INFO: akiro.fi | borndate: 2014-05-21T00:00:00Z
+2026-02-02 00:39:59,191 INFO: saadatbf.com | borndate: 2012-05-06T06:32:02Z
+2026-02-02 00:39:59,192 INFO: profmustafa.com | borndate: 2023-10-19T07:14:31Z
+2026-02-02 00:39:59,192 INFO: alertsify.com | borndate: 2024-02-06T16:09:08Z
+2026-02-02 00:39:59,192 INFO: ncr.org.za | borndate: 2005-10-27T14:18:15Z
+2026-02-02 00:39:59,192 INFO: geoffreyparker.com | borndate: 2000-12-29T18:28:44Z
+2026-02-02 00:39:59,192 INFO: teatrogrande.it | borndate: 2005-04-14T00:00:00Z
+2026-02-02 00:39:59,192 INFO: megnezem.hu | borndate: 2005-11-04T18:54:53Z
+2026-02-02 00:39:59,192 INFO: madeinkazan.ru | borndate: 2020-10-21T14:03:06Z
+2026-02-02 00:39:59,192 INFO: checkoutstores.com | borndate: 2022-09-21T13:47:22Z
+2026-02-02 00:39:59,192 INFO: getdeepdyve.com | borndate: 2024-03-11T10:55:19Z
+2026-02-02 00:39:59,192 INFO: vedonlyontiyhtiot.com | borndate: 2023-02-06T15:58:00Z
+2026-02-02 00:39:59,238 INFO: 已保存结果到 ./borndate_results/2026-02-02.csv, 失败 0 个
