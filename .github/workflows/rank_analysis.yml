@@ -3,7 +3,7 @@ name: Domain Rank Analysis
 on:
   schedule:
     - cron: '0 3 * * 1'  # 每周一 UTC 3:00 运行（对应北京时间 11:00）
-    - cron: '0 3 1 * *'  # 每月1日 UTC 3:00 运行（对应北京时间 11:00）
+    # - cron: '0 3 1 * *'  # 每月1日 UTC 3:00 运行（对应北京时间 11:00）
   workflow_dispatch:  # 允许手动触发
 
 jobs:
